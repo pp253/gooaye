@@ -22,3 +22,7 @@ supabase/.temp/
 
 # OS
 .DS_Store
+
+# 工作階段暫存產物（截圖、瀏覽器工具日誌）
+.playwright-mcp/
+/*.png

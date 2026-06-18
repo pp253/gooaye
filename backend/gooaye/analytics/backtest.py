@@ -24,6 +24,7 @@ HIT_HORIZONS = (30, 60, 90)
 class Trade:
     stock_id: int
     market: str
+    ep_date: str  # 觸發進場的集發布日
     entry_date: str
     entry_price: float
     exit_date: str
@@ -50,10 +51,11 @@ def _bm_return(book: PriceBook, market: str, entry_date: str, exit_date: str) ->
 def _make_trade(
     book: PriceBook, stock_id: int, market: str,
     entry: tuple[str, float], exit_: tuple[str, float],
+    ep_date: str,
 ) -> Trade:
     ret = round(exit_[1] / entry[1] - 1, 4) if entry[1] else 0.0
     return Trade(
-        stock_id=stock_id, market=market,
+        stock_id=stock_id, market=market, ep_date=ep_date,
         entry_date=entry[0], entry_price=entry[1],
         exit_date=exit_[0], exit_price=exit_[1], ret=ret,
         bm_ret=_bm_return(book, market, entry[0], exit_[0]),
@@ -70,22 +72,23 @@ def _strategy_hold_until_flip(
     trades: list[Trade] = []
     holding = False
     entry: tuple[str, float] | None = None
+    entry_ep_date = ""
     for m in mentions:
         bull = m["direction"] == "看多" and (not require_position or m["has_position"])
         bearish = m["direction"] in ("中性", "看空")
         if not holding and bull:
             e = series.on_or_after(_plus_days(m["date"], 1))
             if e:
-                entry, holding = e, True
+                entry, holding, entry_ep_date = e, True, m["date"]
         elif holding and bearish:
             x = series.on_or_after(_plus_days(m["date"], 1))
             if x and entry:
-                trades.append(_make_trade(book, stock_id, market, entry, x))
-                holding, entry = False, None
+                trades.append(_make_trade(book, stock_id, market, entry, x, entry_ep_date))
+                holding, entry, entry_ep_date = False, None, ""
     if holding and entry:  # 尚未平倉 → 以最新價結算
         last = series.latest()
         if last and last[0] > entry[0]:
-            trades.append(_make_trade(book, stock_id, market, entry, last))
+            trades.append(_make_trade(book, stock_id, market, entry, last, entry_ep_date))
     return trades
 
 
@@ -102,7 +105,7 @@ def _strategy_hold_n_days(
             continue
         x = series.on_or_after(_plus_days(e[0], n)) or series.latest()
         if x and x[0] > e[0]:
-            trades.append(_make_trade(book, stock_id, market, e, x))
+            trades.append(_make_trade(book, stock_id, market, e, x, m["date"]))
     return trades
 
 
@@ -173,7 +176,7 @@ def run_backtest(
     book = book or load_price_book(client)
 
     stock_rows = (
-        client.table("stocks").select("id,market,asset_type")
+        client.table("stocks").select("id,ticker,name_zh,market,asset_type")
         .in_("asset_type", ["個股", "ETF"]).execute().data
     )
     stocks = {s["id"]: s for s in stock_rows}
@@ -217,9 +220,31 @@ def run_backtest(
             else:
                 t = _strategy_hold_n_days(book, stock_id, market, series, mlist, n=kw["n"])
             all_trades.extend(t)
+        sorted_trades = sorted(all_trades, key=lambda t: t.exit_date)
+        trade_log = [
+            {
+                "ticker": stocks[t.stock_id].get("ticker", ""),
+                "name_zh": stocks[t.stock_id].get("name_zh") or "",
+                "market": t.market,
+                "ep_date": t.ep_date,
+                "entry_date": t.entry_date,
+                "exit_date": t.exit_date,
+                "ret": t.ret,
+                "bm_ret": t.bm_ret,
+                "alpha": round(t.ret - t.bm_ret, 4) if t.bm_ret is not None else None,
+            }
+            for t in sorted_trades
+        ]
+        cum_ret = 0.0
+        equity_curve: list[dict] = []
+        for i, tr in enumerate(sorted_trades):
+            cum_ret += tr.ret
+            equity_curve.append({"date": tr.exit_date, "value": round(cum_ret / (i + 1), 4)})
         strategies.append({
             "id": sid_, "label": label,
             "scopes": [_aggregate(all_trades, sc) for sc in ("ALL", "TW", "US")],
+            "trades": trade_log,
+            "equity_curve": equity_curve,
         })
 
     results = {
