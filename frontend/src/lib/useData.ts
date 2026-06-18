@@ -12,6 +12,30 @@ export interface StockRow extends Stock {
   signal: StockSignal
   mentions: MentionWithTime[]
   performance: StockPerformance | null
+  recent: number[] // 近約 30 天日收盤（舊→新），給迷你走勢圖用
+}
+
+/** 分頁撈出 cutoff 之後的所有股價（PostgREST 單次上限 1000，需分頁）。 */
+async function fetchRecentPrices(cutoff: string): Promise<Map<number, number[]>> {
+  const map = new Map<number, number[]>()
+  const size = 1000
+  for (let page = 0; ; page++) {
+    const { data } = await supabase
+      .from('prices')
+      .select('stock_id, date, close')
+      .gte('date', cutoff)
+      .order('stock_id')
+      .order('date')
+      .range(page * size, page * size + size - 1)
+    const rows = data ?? []
+    for (const r of rows) {
+      const arr = map.get(r.stock_id) ?? []
+      arr.push(r.close as number)
+      map.set(r.stock_id, arr)
+    }
+    if (rows.length < size) break
+  }
+  return map
 }
 
 /**
@@ -35,6 +59,10 @@ export async function loadStockSignals(): Promise<{
   const perfByStock = new Map<number, StockPerformance>(
     ((perfData ?? []) as StockPerformance[]).map((p) => [p.stock_id, p]),
   )
+
+  // 近 ~45 天股價（約 30 個交易日）給迷你走勢圖
+  const cutoff = new Date(Date.now() - 45 * 86_400_000).toISOString().slice(0, 10)
+  const recentByStock = await fetchRecentPrices(cutoff)
   const rawMentions = (mentionData ?? []) as (Mention & {
     episodes: { ep_no: number; title: string; published_at: string | null }
   })[]
@@ -73,6 +101,7 @@ export async function loadStockSignals(): Promise<{
         mentions,
         signal: computeSignal(mentions, referenceDate),
         performance: perfByStock.get(s.id) ?? null,
+        recent: recentByStock.get(s.id) ?? [],
       }
     })
     .filter((r): r is StockRow => r !== null)

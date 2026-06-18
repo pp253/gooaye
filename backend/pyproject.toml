@@ -1,0 +1,22 @@
+[project]
+name = "gooaye"
+version = "0.1.0"
+description = "Gooaye 股癌 podcast 個股追蹤、摘要與回測"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.28",
+    "selectolax>=0.4",
+    "brotli>=1.1",
+    "openai>=2.0",
+    "python-dotenv>=1.0",
+    "pydantic>=2.7",
+    "supabase>=2.0",
+    "yfinance>=1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["gooaye"]

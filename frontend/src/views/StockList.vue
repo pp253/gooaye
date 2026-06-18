@@ -5,6 +5,8 @@ import { loadStockSignals, type StockRow } from '@/lib/useData'
 import { FRESHNESS_META, relativeTime } from '@/lib/signal'
 import { TRADEABLE_TYPES } from '@/lib/types'
 import { pct, retColor } from '@/lib/format'
+import { useQuerySync } from '@/lib/useQuerySync'
+import Sparkline from '@/components/Sparkline.vue'
 
 const rows = ref<StockRow[]>([])
 const referenceDate = ref('')
@@ -15,6 +17,15 @@ const market = ref<'ALL' | 'TW' | 'US'>('ALL')
 const onlyPosition = ref(false)
 const hideStale = ref(true)
 const sortBy = ref<'score' | 'recent' | 'count'>('score')
+
+// 篩選狀態同步到網址（重新整理／返回時保留）
+useQuerySync({
+  asset: { ref: assetView, default: 'tradeable' },
+  market: { ref: market, default: 'ALL' },
+  pos: { ref: onlyPosition, default: false },
+  hideStale: { ref: hideStale, default: true },
+  sort: { ref: sortBy, default: 'score' },
+})
 
 const dirColor: Record<string, string> = {
   看多: '#68d391',
@@ -85,12 +96,15 @@ onMounted(async () => {
 
     <p v-if="loading" class="loading">載入中 …</p>
     <p v-else-if="filtered.length === 0" class="loading">沒有符合條件的個股</p>
-    <table v-else class="stock-table">
+    <div v-else class="table-wrap">
+    <table class="stock-table">
       <thead>
         <tr>
           <th>個股</th>
           <th>訊號分數</th>
           <th>目前立場</th>
+          <th>現價</th>
+          <th>近30天</th>
           <th>最近提及</th>
           <th>首次看多至今</th>
           <th>連續看多</th>
@@ -128,6 +142,8 @@ onMounted(async () => {
               {{ r.signal.latest_direction }}
             </span>
           </td>
+          <td class="num price">{{ r.performance?.current_price ?? '—' }}</td>
+          <td class="spark-cell"><Sparkline :values="r.recent" /></td>
           <td>
             <span class="fresh" :style="{ color: FRESHNESS_META[r.signal.latest_freshness].color }">
               {{ FRESHNESS_META[r.signal.latest_freshness].dot }}
@@ -146,6 +162,7 @@ onMounted(async () => {
         </tr>
       </tbody>
     </table>
+    </div>
   </div>
 </template>
 
@@ -167,12 +184,14 @@ onMounted(async () => {
 .chip:hover { background: #374151; }
 .chip.active { background: #63b3ed; color: #1a1f2e; font-weight: 600; }
 
-.stock-table { width: 100%; border-collapse: collapse; }
+.table-wrap { overflow-x: auto; }
+.stock-table { width: 100%; border-collapse: collapse; min-width: 920px; }
 .stock-table th {
-  text-align: left; padding: 0.6rem 1rem; background: #1a1f2e; color: #718096;
-  font-size: 0.78rem; font-weight: 600; border-bottom: 1px solid #2d3748;
+  text-align: left; padding: 0.6rem 0.7rem; background: #1a1f2e; color: #718096;
+  font-size: 0.76rem; font-weight: 600; border-bottom: 1px solid #2d3748;
+  white-space: nowrap;
 }
-.stock-table td { padding: 0.6rem 1rem; border-bottom: 1px solid #1e2535; font-size: 0.88rem; vertical-align: middle; }
+.stock-table td { padding: 0.6rem 0.7rem; border-bottom: 1px solid #1e2535; font-size: 0.86rem; vertical-align: middle; white-space: nowrap; }
 .stock-table tr:hover td { background: #1a1f2e; }
 
 .stock-cell { display: flex; align-items: center; gap: 0.5rem; text-decoration: none; color: inherit; }
@@ -198,6 +217,8 @@ onMounted(async () => {
 .ep-ref { font-size: 0.72rem; color: #718096; margin-left: 0.4rem; }
 
 .num { text-align: center; font-variant-numeric: tabular-nums; }
+.price { text-align: right; color: #cbd5e0; }
+.spark-cell { width: 100px; padding-top: 0; padding-bottom: 0; }
 .muted { color: #718096; }
 .streak { color: #f6ad55; font-weight: 600; }
 </style>

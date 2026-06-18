@@ -105,6 +105,9 @@ def sync_prices(
     # 全體最早提及日：給未被提及的標的（如基準 SPY/0050）當抓取起點
     global_min = min(first_date.values()) if first_date else None
 
+    # 確保至少有約 14 個月歷史，讓前端「1年／半年」範圍有資料
+    lookback = (dt.date.today() - dt.timedelta(days=420)).isoformat()
+
     total_rows = 0
     done = 0
     for s in stocks:
@@ -120,10 +123,14 @@ def sync_prices(
             )
             if existing:
                 continue
-        start = first_date.get(sid) or global_min
-        if not start:
+        mention_start = first_date.get(sid) or global_min
+        if not mention_start:
             continue
-        start = (dt.date.fromisoformat(start) - dt.timedelta(days=5)).isoformat()
+        # 取「首次提及前 5 天」與「往前 420 天」較早者，確保有足夠歷史
+        start = min(
+            (dt.date.fromisoformat(mention_start) - dt.timedelta(days=5)).isoformat(),
+            lookback,
+        )
         try:
             series = fetch_close_series(symbol, start)
         except Exception as exc:  # noqa: BLE001 — 單檔失敗不中斷批次

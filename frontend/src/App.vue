@@ -49,5 +49,5 @@ body {
 .nav a.router-link-active:not(.home),
 .nav a.home.router-link-exact-active { color: #e2e8f0; background: #2d3748; }
 
-.main { flex: 1; padding: 2rem; max-width: 1100px; margin: 0 auto; width: 100%; }
+.main { flex: 1; padding: 1.5rem 2rem; width: 100%; }
 </style>

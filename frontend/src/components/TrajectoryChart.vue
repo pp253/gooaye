@@ -1,13 +1,20 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { MentionWithTime } from '@/lib/signal'
 import { DIRECTION_WEIGHT } from '@/lib/signal'
+import MentionTip from '@/components/MentionTip.vue'
 
-const props = defineProps<{ mentions: MentionWithTime[]; referenceDate: string }>()
+const props = defineProps<{
+  mentions: MentionWithTime[]
+  referenceDate: string
+  fromDate?: string | null
+  axisStart?: string | null // 與股價圖共用的 x 軸起點
+  axisEnd?: string | null // 與股價圖共用的 x 軸終點
+}>()
 
 const W = 680
-const H = 210
-const PAD = { top: 24, right: 16, bottom: 48, left: 40 }
+const H = 160
+const PAD = { top: 18, right: 16, bottom: 42, left: 52 }
 
 const dirColor: Record<string, string> = {
   看多: '#68d391',
@@ -15,12 +22,21 @@ const dirColor: Record<string, string> = {
   中性: '#90cdf4',
 }
 
-// 依日期排序（舊→新）
-const sorted = computed(() =>
-  [...props.mentions].sort((a, b) => Date.parse(a.published_at) - Date.parse(b.published_at)),
-)
+// 套用時間範圍後依日期排序（舊→新）
+const sorted = computed(() => {
+  const ms = props.fromDate
+    ? props.mentions.filter((m) => m.published_at >= props.fromDate!)
+    : props.mentions
+  return [...ms].sort((a, b) => Date.parse(a.published_at) - Date.parse(b.published_at))
+})
 
 const span = computed(() => {
+  // 優先用共用軸（與股價圖對齊）
+  if (props.axisStart && props.axisEnd) {
+    const min = Date.parse(props.axisStart)
+    const max = Date.parse(props.axisEnd)
+    return { min, max: max <= min ? min + 1 : max }
+  }
   const times = sorted.value.map((m) => Date.parse(m.published_at))
   const min = Math.min(...times)
   const max = Math.max(Date.parse(props.referenceDate), ...times)
@@ -53,10 +69,15 @@ const points = computed(() =>
     hasPos: m.has_position,
     ep: m.episodes?.ep_no,
     date: m.published_at,
+    daysAgo: m.days_ago,
     dir: m.direction,
     conf: m.confidence,
+    quote: m.quote,
   })),
 )
+
+// hover 狀態（顯示日期／集數／方向等詳細資訊）
+const hovered = ref<number | null>(null)
 
 const linePath = computed(() =>
   points.value.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.cx} ${p.cy}`).join(' '),
@@ -88,6 +109,8 @@ const midY = (H - PAD.top - PAD.bottom) / 2 + PAD.top
 </script>
 
 <template>
+  <p v-if="!sorted.length" class="traj-empty">此時間範圍內無提及紀錄</p>
+  <div v-else class="traj-wrap">
   <svg :viewBox="`0 0 ${W} ${H}`" class="traj">
     <!-- 方向區帶 -->
     <line :x1="PAD.left" :x2="W - PAD.right" :y1="PAD.top" :y2="PAD.top" class="grid" />
@@ -109,16 +132,30 @@ const midY = (H - PAD.top - PAD.bottom) / 2 + PAD.top
     <!-- 點 -->
     <g v-for="(p, i) in points" :key="i">
       <circle v-if="p.hasPos" :cx="p.cx" :cy="p.cy" :r="p.r + 4" fill="none" stroke="#f6ad55" stroke-width="2" />
-      <circle :cx="p.cx" :cy="p.cy" :r="p.r" :fill="p.color">
-        <title>EP{{ p.ep }} · {{ p.date }} · {{ p.dir }} · 信心 {{ Math.round(p.conf * 100) }}%{{ p.hasPos ? ' · 有部位' : '' }}</title>
-      </circle>
+      <circle :cx="p.cx" :cy="p.cy" :r="p.r" :fill="p.color"
+        :class="{ active: hovered === i }"
+        @mouseenter="hovered = i" @mouseleave="hovered = null" />
+      <!-- 透明大圈擴大 hover 命中範圍 -->
+      <circle :cx="p.cx" :cy="p.cy" r="12" fill="transparent"
+        @mouseenter="hovered = i" @mouseleave="hovered = null" />
       <text v-if="showEpLabels" :x="p.cx" :y="baseline + 15" class="ep-label">EP{{ p.ep }}</text>
     </g>
   </svg>
+
+  <!-- hover 提示框 -->
+  <MentionTip v-if="hovered !== null"
+    :ep="points[hovered].ep" :dir="points[hovered].dir" :color="points[hovered].color"
+    :date="points[hovered].date" :days-ago="points[hovered].daysAgo"
+    :conf="points[hovered].conf" :has-pos="points[hovered].hasPos" :quote="points[hovered].quote"
+    :left-pct="points[hovered].cx / W * 100" :top-pct="points[hovered].cy / H * 100"
+    :place-below="points[hovered].cy < H / 2" />
+  </div>
 </template>
 
 <style scoped>
-.traj { width: 100%; height: auto; background: #161b27; border-radius: 8px; }
+.traj-wrap { position: relative; }
+.traj { width: 100%; height: auto; background: #161b27; border-radius: 8px; display: block; }
+.traj-empty { color: #718096; font-size: 0.85rem; padding: 1rem 0; }
 .grid { stroke: #2d3748; stroke-width: 1; }
 .grid.mid { stroke-dasharray: 3 3; }
 .date-grid { stroke: #232b3a; stroke-width: 1; }
@@ -126,4 +163,6 @@ const midY = (H - PAD.top - PAD.bottom) / 2 + PAD.top
 .traj-line { fill: none; stroke: #4a5568; stroke-width: 1.5; }
 .ep-label { font-size: 9px; fill: #718096; text-anchor: middle; }
 .date-label { font-size: 10px; fill: #a0aec0; text-anchor: middle; font-variant-numeric: tabular-nums; }
+circle { cursor: pointer; }
+circle.active { stroke: #fff; stroke-width: 1.5; }
 </style>
