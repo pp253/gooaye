@@ -1,0 +1,110 @@
+"""從 whatmkreallysaid.com 的官方資料 pack 取得逐字稿。
+
+主站首頁載入的是單一 brotli 壓縮 JSON pack（每日重建，含全部集數）：
+  manifest:  https://whatmkreallysaid.com/pack_manifest.json
+  pack:      https://whatmkreallysaid.com/transcripts.json.br
+
+每筆 entry 欄位：
+  n   集數編號          t    標題（含描述）
+  d   日期 YYYY-MM-DD   dt   格式化日期
+  desc 官方摘要         tx   完整逐字稿
+
+這是主站真正的即時來源（取代過時的 /seo/*.html SEO 靜態鏡像）。
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import asdict, dataclass
+from pathlib import Path
+
+import brotli
+import httpx
+
+MANIFEST_URL = "https://whatmkreallysaid.com/pack_manifest.json"
+PACK_URL = "https://whatmkreallysaid.com/transcripts.json.br"
+EPISODE_URL = "https://whatmkreallysaid.com/episode.html?file=EP{ep}"
+RAW_DIR = Path(__file__).resolve().parents[2] / "data" / "raw"
+
+_USER_AGENT = "gooaye-tracker/0.2 (personal research)"
+
+
+@dataclass(slots=True)
+class Episode:
+    ep_no: int
+    title: str
+    source_url: str
+    published_at: str  # YYYY-MM-DD
+    site_desc: str  # 站方摘要（非我們 LLM 產的）
+    transcript: str
+    char_count: int
+
+
+def fetch_pack() -> list[dict]:
+    """下載並解壓官方 pack，回傳 entry list。"""
+    resp = httpx.get(
+        PACK_URL, follow_redirects=True, timeout=120,
+        headers={"User-Agent": _USER_AGENT},
+    )
+    resp.raise_for_status()
+    # httpx 若見 Content-Encoding: br 會自動解壓；否則 content 仍是 brotli。
+    raw = resp.content
+    try:
+        return json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return json.loads(brotli.decompress(raw))
+
+
+def get_manifest() -> dict:
+    resp = httpx.get(MANIFEST_URL, follow_redirects=True, timeout=30)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _to_episode(entry: dict) -> Episode:
+    ep_no = int(entry["n"])
+    transcript = entry.get("tx", "") or ""
+    return Episode(
+        ep_no=ep_no,
+        title=entry.get("t", ""),
+        source_url=EPISODE_URL.format(ep=ep_no),
+        published_at=entry.get("d", ""),
+        site_desc=entry.get("desc", ""),
+        transcript=transcript,
+        char_count=len(transcript),
+    )
+
+
+def save_episode(episode: Episode, *, raw_dir: Path = RAW_DIR) -> Path:
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    path = raw_dir / f"EP{episode.ep_no}.json"
+    path.write_text(
+        json.dumps(asdict(episode), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return path
+
+
+def fetch_range(
+    start: int, end: int, *, raw_dir: Path = RAW_DIR
+) -> list[Episode]:
+    """從 pack 取出 [start, end]（含端點）的集數並存檔。"""
+    pack = fetch_pack()
+    by_no = {int(e["n"]): e for e in pack}
+    episodes: list[Episode] = []
+    for ep_no in range(start, end + 1):
+        entry = by_no.get(ep_no)
+        if entry is None:
+            print(f"  EP{ep_no}: pack 中無此集，略過")
+            continue
+        if not (entry.get("tx") or "").strip():
+            print(f"  EP{ep_no}: pack 中無逐字稿內容，略過")
+            continue
+        episode = _to_episode(entry)
+        save_episode(episode, raw_dir=raw_dir)
+        episodes.append(episode)
+        print(
+            f"  EP{ep_no} ({episode.published_at}): "
+            f"{episode.char_count} 字 → 已存"
+        )
+    return episodes

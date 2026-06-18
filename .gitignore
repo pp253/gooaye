@@ -1,0 +1,24 @@
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Env / secrets
+.env
+.env.local
+
+# Data (raw transcripts & extracted json are reproducible)
+backend/data/raw/
+backend/data/extracted/
+
+# Node / Vue
+frontend/node_modules/
+frontend/dist/
+
+# Supabase local
+supabase/.branches/
+supabase/.temp/
+
+# OS
+.DS_Store

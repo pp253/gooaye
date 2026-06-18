@@ -1,0 +1,137 @@
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import { RouterLink } from 'vue-router'
+import { loadStockSignals, type StockRow } from '@/lib/useData'
+import { FRESHNESS_META, relativeTime } from '@/lib/signal'
+import TrajectoryChart from '@/components/TrajectoryChart.vue'
+
+const props = defineProps<{ id: string }>()
+
+const row = ref<StockRow | null>(null)
+const referenceDate = ref('')
+const loading = ref(true)
+
+const dirColor: Record<string, string> = {
+  看多: '#68d391',
+  看空: '#fc8181',
+  中性: '#90cdf4',
+}
+
+// 時間軸：新→舊
+const timeline = computed(() =>
+  row.value
+    ? [...row.value.mentions].sort(
+        (a, b) => Date.parse(b.published_at) - Date.parse(a.published_at),
+      )
+    : [],
+)
+const latest = computed(() => timeline.value[0] ?? null)
+
+onMounted(async () => {
+  const res = await loadStockSignals()
+  referenceDate.value = res.referenceDate
+  row.value = res.stocks.find((s) => s.id === Number(props.id)) ?? null
+  loading.value = false
+})
+</script>
+
+<template>
+  <div>
+    <p v-if="loading" class="loading">載入中 …</p>
+    <template v-else-if="row">
+      <div class="stock-header">
+        <span :class="['market-badge', row.market.toLowerCase()]">{{ row.market }}</span>
+        <h1 class="stock-name">{{ row.name_zh }}</h1>
+        <span class="stock-ticker">{{ row.ticker }}</span>
+      </div>
+
+      <!-- 當前立場卡片 -->
+      <div v-if="latest" class="stance-card" :style="{ borderColor: dirColor[latest.direction] }">
+        <div class="stance-label">目前立場（最新一次提到）</div>
+        <div class="stance-main">
+          <span class="stance-dir" :style="{ color: dirColor[latest.direction] }">{{ latest.direction }}</span>
+          <span class="stance-conf">信心 {{ Math.round(latest.confidence * 100) }}%</span>
+          <span v-if="latest.has_position" class="stance-pos">🔴 他有部位</span>
+          <span class="stance-fresh" :style="{ color: FRESHNESS_META[latest.freshness].color }">
+            {{ FRESHNESS_META[latest.freshness].dot }} {{ relativeTime(latest.days_ago) }}
+            · EP{{ latest.episodes?.ep_no }}（{{ latest.published_at }}）
+          </span>
+        </div>
+        <div v-if="latest.freshness === 'stale'" class="stance-warn">
+          ⚠️ 這是 2 個月前以上的觀點，可能已不具時效，僅供參考
+        </div>
+      </div>
+
+      <!-- 演變圖 -->
+      <section class="section">
+        <h2 class="section-title">觀點演變（點越大＝信心越高，金圈＝他有部位）</h2>
+        <TrajectoryChart :mentions="row.mentions" :reference-date="referenceDate" />
+      </section>
+
+      <!-- 時間軸 -->
+      <section class="section">
+        <h2 class="section-title">提及紀錄（{{ timeline.length }} 次，新到舊）</h2>
+        <div class="timeline">
+          <div v-for="m in timeline" :key="m.id"
+            :class="['timeline-item', { stale: m.freshness === 'stale' }]">
+            <div class="tl-head">
+              <span class="fresh-dot">{{ FRESHNESS_META[m.freshness].dot }}</span>
+              <RouterLink :to="`/episodes/${m.episodes?.ep_no}`" class="ep-link">EP{{ m.episodes?.ep_no }}</RouterLink>
+              <span class="tl-date">{{ m.published_at }} · {{ relativeTime(m.days_ago) }}</span>
+              <span class="m-dir" :style="{ color: dirColor[m.direction] }">{{ m.direction }}</span>
+              <span class="m-conf">{{ Math.round(m.confidence * 100) }}%</span>
+              <span v-if="m.has_position" class="m-pos">有部位</span>
+            </div>
+            <blockquote class="m-quote">「{{ m.quote }}」</blockquote>
+            <p class="m-note" v-if="m.note">{{ m.note }}</p>
+          </div>
+        </div>
+      </section>
+    </template>
+    <p v-else class="loading">找不到此個股</p>
+  </div>
+</template>
+
+<style scoped>
+.loading { color: #718096; }
+
+.stock-header { display: flex; align-items: baseline; gap: 0.8rem; margin-bottom: 1.25rem; }
+.stock-name { font-size: 1.4rem; font-weight: 700; }
+.stock-ticker { font-family: monospace; font-size: 1.1rem; color: #90cdf4; font-weight: 600; }
+
+.market-badge { font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 4px; font-weight: 600; }
+.market-badge.tw { background: #22543d; color: #9ae6b4; }
+.market-badge.us { background: #1a365d; color: #90cdf4; }
+.market-badge.other, .market-badge.unknown { background: #2d3748; color: #a0aec0; }
+
+.stance-card {
+  background: #1a1f2e; border: 1px solid; border-left-width: 4px;
+  border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 2rem;
+}
+.stance-label { font-size: 0.78rem; color: #718096; margin-bottom: 0.5rem; }
+.stance-main { display: flex; align-items: center; flex-wrap: wrap; gap: 0.9rem; }
+.stance-dir { font-size: 1.5rem; font-weight: 700; }
+.stance-conf { font-size: 0.9rem; color: #a0aec0; }
+.stance-pos { font-size: 0.82rem; color: #fc8181; font-weight: 600; }
+.stance-fresh { font-size: 0.85rem; font-weight: 500; margin-left: auto; }
+.stance-warn { margin-top: 0.75rem; font-size: 0.82rem; color: #f6ad55; background: #2d2410; padding: 0.5rem 0.75rem; border-radius: 6px; }
+
+.section { margin-bottom: 2rem; }
+.section-title { font-size: 0.95rem; font-weight: 600; color: #a0aec0; margin-bottom: 0.75rem; border-bottom: 1px solid #2d3748; padding-bottom: 0.4rem; }
+
+.timeline { display: flex; flex-direction: column; gap: 0.75rem; }
+.timeline-item { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 8px; padding: 0.8rem 1rem; }
+.timeline-item.stale { opacity: 0.6; }
+
+.tl-head { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.45rem; }
+.fresh-dot { font-size: 0.7rem; }
+.ep-link { color: #63b3ed; text-decoration: none; font-weight: 700; font-size: 0.9rem; }
+.ep-link:hover { text-decoration: underline; }
+.tl-date { font-size: 0.78rem; color: #718096; }
+.m-dir { font-weight: 600; font-size: 0.85rem; margin-left: auto; }
+.m-conf { font-size: 0.78rem; color: #718096; }
+.m-pos { background: #2a4365; color: #90cdf4; font-size: 0.7rem; padding: 0.08rem 0.4rem; border-radius: 4px; }
+
+.m-quote { border-left: 3px solid #4a5568; padding-left: 0.75rem; color: #a0aec0; font-size: 0.85rem; line-height: 1.6; font-style: italic; margin-bottom: 0.4rem; }
+.m-note { font-size: 0.8rem; color: #718096; }
+</style>
