@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { Mention, Stock } from './types'
+import type { Mention, Stock, StockPerformance } from './types'
 import {
   computeSignal,
   daysBetween,
@@ -11,6 +11,7 @@ import {
 export interface StockRow extends Stock {
   signal: StockSignal
   mentions: MentionWithTime[]
+  performance: StockPerformance | null
 }
 
 /**
@@ -21,15 +22,19 @@ export async function loadStockSignals(): Promise<{
   stocks: StockRow[]
   referenceDate: string
 }> {
-  const [{ data: stockData }, { data: mentionData }] = await Promise.all([
+  const [{ data: stockData }, { data: mentionData }, { data: perfData }] = await Promise.all([
     supabase.from('stocks').select('*'),
     supabase
       .from('mentions')
       .select('*, episodes(ep_no, title, published_at)')
       .not('stock_id', 'is', null),
+    supabase.from('stock_performance').select('*'),
   ])
 
   const stocks = (stockData ?? []) as Stock[]
+  const perfByStock = new Map<number, StockPerformance>(
+    ((perfData ?? []) as StockPerformance[]).map((p) => [p.stock_id, p]),
+  )
   const rawMentions = (mentionData ?? []) as (Mention & {
     episodes: { ep_no: number; title: string; published_at: string | null }
   })[]
@@ -63,7 +68,12 @@ export async function loadStockSignals(): Promise<{
     .map((s) => {
       const mentions = byStock.get(s.id) ?? []
       if (mentions.length === 0) return null
-      return { ...s, mentions, signal: computeSignal(mentions, referenceDate) }
+      return {
+        ...s,
+        mentions,
+        signal: computeSignal(mentions, referenceDate),
+        performance: perfByStock.get(s.id) ?? null,
+      }
     })
     .filter((r): r is StockRow => r !== null)
 

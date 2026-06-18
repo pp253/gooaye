@@ -3,7 +3,9 @@ import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { loadStockSignals, type StockRow } from '@/lib/useData'
 import { FRESHNESS_META, relativeTime } from '@/lib/signal'
+import { pct, retColor } from '@/lib/format'
 import TrajectoryChart from '@/components/TrajectoryChart.vue'
+import PriceChart from '@/components/PriceChart.vue'
 
 const props = defineProps<{ id: string }>()
 
@@ -62,6 +64,34 @@ onMounted(async () => {
         </div>
       </div>
 
+      <!-- 跟單績效 -->
+      <div v-if="row.performance?.current_price" class="perf-row">
+        <div class="perf-item">
+          <span class="perf-label">現價</span>
+          <span class="perf-val">{{ row.performance.current_price }}</span>
+        </div>
+        <div class="perf-item" v-if="row.performance.ret_since_first_bull != null">
+          <span class="perf-label">首次看多至今</span>
+          <span class="perf-val" :style="{ color: retColor(row.performance.ret_since_first_bull) }">
+            {{ pct(row.performance.ret_since_first_bull) }}
+          </span>
+          <span class="perf-sub">（{{ row.performance.first_bull_date }}）</span>
+        </div>
+        <div class="perf-item" v-if="row.performance.ret_since_last_bull != null">
+          <span class="perf-label">最近看多至今</span>
+          <span class="perf-val" :style="{ color: retColor(row.performance.ret_since_last_bull) }">
+            {{ pct(row.performance.ret_since_last_bull) }}
+          </span>
+          <span class="perf-sub">（{{ row.performance.last_bull_date }}）</span>
+        </div>
+      </div>
+
+      <!-- 股價走勢 + 提及點 -->
+      <section class="section">
+        <h2 class="section-title">股價走勢（點＝他提到的時機，顏色＝當時方向）</h2>
+        <PriceChart :stock-id="row.id" :mentions="row.mentions" />
+      </section>
+
       <!-- 演變圖 -->
       <section class="section">
         <h2 class="section-title">觀點演變（點越大＝信心越高，金圈＝他有部位）</h2>
@@ -115,6 +145,12 @@ onMounted(async () => {
 .stance-pos { font-size: 0.82rem; color: #fc8181; font-weight: 600; }
 .stance-fresh { font-size: 0.85rem; font-weight: 500; margin-left: auto; }
 .stance-warn { margin-top: 0.75rem; font-size: 0.82rem; color: #f6ad55; background: #2d2410; padding: 0.5rem 0.75rem; border-radius: 6px; }
+
+.perf-row { display: flex; flex-wrap: wrap; gap: 2rem; margin-bottom: 2rem; padding: 0 0.25rem; }
+.perf-item { display: flex; flex-direction: column; gap: 0.15rem; }
+.perf-label { font-size: 0.72rem; color: #718096; }
+.perf-val { font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.perf-sub { font-size: 0.7rem; color: #4a5568; }
 
 .section { margin-bottom: 2rem; }
 .section-title { font-size: 0.95rem; font-weight: 600; color: #a0aec0; margin-bottom: 0.75rem; border-bottom: 1px solid #2d3748; padding-bottom: 0.4rem; }

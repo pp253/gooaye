@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import { loadStockSignals, type StockRow } from '@/lib/useData'
 import { FRESHNESS_META, relativeTime } from '@/lib/signal'
 import { TRADEABLE_TYPES } from '@/lib/types'
+import { pct, retColor } from '@/lib/format'
 
 const rows = ref<StockRow[]>([])
 const referenceDate = ref('')
@@ -91,6 +92,7 @@ onMounted(async () => {
           <th>訊號分數</th>
           <th>目前立場</th>
           <th>最近提及</th>
+          <th>首次看多至今</th>
           <th>連續看多</th>
           <th>次數</th>
         </tr>
@@ -132,6 +134,9 @@ onMounted(async () => {
               {{ relativeTime(r.signal.latest_days_ago) }}
             </span>
             <span class="ep-ref">EP{{ r.signal.latest_ep }}</span>
+          </td>
+          <td class="num" :style="{ color: retColor(r.performance?.ret_since_first_bull) }">
+            {{ pct(r.performance?.ret_since_first_bull) }}
           </td>
           <td class="num">
             <span v-if="r.signal.bull_streak >= 2" class="streak">🔥 {{ r.signal.bull_streak }}</span>

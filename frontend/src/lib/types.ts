@@ -26,6 +26,22 @@ export interface Stock {
   asset_type: AssetType
 }
 
+export interface StockPerformance {
+  stock_id: number
+  current_price: number | null
+  first_bull_date: string | null
+  first_bull_price: number | null
+  ret_since_first_bull: number | null
+  last_bull_date: string | null
+  last_bull_price: number | null
+  ret_since_last_bull: number | null
+}
+
+export interface PricePoint {
+  date: string
+  close: number
+}
+
 export interface Mention {
   id: number
   episode_id: number

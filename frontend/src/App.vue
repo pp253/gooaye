@@ -4,6 +4,7 @@
       <span class="nav-brand">股癌追蹤器</span>
       <RouterLink to="/" class="home">決策面板</RouterLink>
       <RouterLink to="/stocks">個股追蹤</RouterLink>
+      <RouterLink to="/backtest">回測</RouterLink>
       <RouterLink to="/episodes">集數列表</RouterLink>
     </nav>
     <main class="main">

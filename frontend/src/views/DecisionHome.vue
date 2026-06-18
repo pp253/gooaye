@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import { loadStockSignals, type StockRow } from '@/lib/useData'
 import { FRESHNESS_META, relativeTime } from '@/lib/signal'
 import { TRADEABLE_TYPES } from '@/lib/types'
+import { pct, retColor } from '@/lib/format'
 
 const rows = ref<StockRow[]>([])
 const referenceDate = ref('')
@@ -75,6 +76,13 @@ onMounted(async () => {
             <div class="sc-fresh" :style="{ color: FRESHNESS_META[r.signal.latest_freshness].color }">
               {{ FRESHNESS_META[r.signal.latest_freshness].dot }} {{ relativeTime(r.signal.latest_days_ago) }} · EP{{ r.signal.latest_ep }}
             </div>
+            <div v-if="r.performance?.current_price" class="sc-price">
+              {{ r.performance.current_price }}
+              <span v-if="r.performance.ret_since_last_bull != null"
+                :style="{ color: retColor(r.performance.ret_since_last_bull) }">
+                · 最近看多 {{ pct(r.performance.ret_since_last_bull) }}
+              </span>
+            </div>
           </RouterLink>
           <p v-if="hasPosition.length === 0" class="empty">近期無此類訊號</p>
         </div>
@@ -96,6 +104,13 @@ onMounted(async () => {
             <div class="sc-fresh" :style="{ color: FRESHNESS_META[r.signal.latest_freshness].color }">
               {{ FRESHNESS_META[r.signal.latest_freshness].dot }} {{ relativeTime(r.signal.latest_days_ago) }} · EP{{ r.signal.latest_ep }}
             </div>
+            <div v-if="r.performance?.current_price" class="sc-price">
+              {{ r.performance.current_price }}
+              <span v-if="r.performance.ret_since_last_bull != null"
+                :style="{ color: retColor(r.performance.ret_since_last_bull) }">
+                · 最近看多 {{ pct(r.performance.ret_since_last_bull) }}
+              </span>
+            </div>
           </RouterLink>
           <p v-if="topBull.length === 0" class="empty">近期無此類訊號</p>
         </div>
@@ -115,6 +130,13 @@ onMounted(async () => {
             </div>
             <div class="sc-fresh" :style="{ color: FRESHNESS_META[r.signal.latest_freshness].color }">
               {{ FRESHNESS_META[r.signal.latest_freshness].dot }} {{ relativeTime(r.signal.latest_days_ago) }} · EP{{ r.signal.latest_ep }}
+            </div>
+            <div v-if="r.performance?.current_price" class="sc-price">
+              {{ r.performance.current_price }}
+              <span v-if="r.performance.ret_since_last_bull != null"
+                :style="{ color: retColor(r.performance.ret_since_last_bull) }">
+                · 最近看多 {{ pct(r.performance.ret_since_last_bull) }}
+              </span>
             </div>
           </RouterLink>
         </div>
@@ -155,4 +177,5 @@ onMounted(async () => {
 .sc-score-big { font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 
 .sc-fresh { font-size: 0.76rem; font-weight: 500; }
+.sc-price { font-size: 0.76rem; color: #cbd5e0; font-variant-numeric: tabular-nums; }
 </style>
