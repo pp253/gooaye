@@ -85,6 +85,12 @@ def save_episode(episode: Episode, *, raw_dir: Path = RAW_DIR) -> Path:
     return path
 
 
+def list_available_ep_nos() -> list[int]:
+    """回傳 pack 內所有已知集數（排序後）。"""
+    pack = fetch_pack()
+    return sorted(int(e["n"]) for e in pack if (e.get("tx") or "").strip())
+
+
 def fetch_range(
     start: int, end: int, *, raw_dir: Path = RAW_DIR
 ) -> list[Episode]:
