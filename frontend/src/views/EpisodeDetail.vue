@@ -8,7 +8,13 @@ const props = defineProps<{ ep: string }>()
 const episode = ref<Episode | null>(null)
 const mentions = ref<Mention[]>([])
 const loading = ref(true)
-const showTranscript = ref(false)
+const activeTab = ref<'mentions' | 'transcript'>('mentions')
+const transcript = ref<string | null>(null)
+const transcriptLoading = ref(false)
+
+// 初始查詢明列欄位、排除大欄位 transcript（只留小的 transcript_chars 顯示字數）
+const EP_COLS =
+  'id, ep_no, title, source_url, published_at, summary, topics, created_at, transcript_chars, site_desc'
 
 const dirColor: Record<string, string> = {
   '看多': '#68d391',
@@ -18,7 +24,7 @@ const dirColor: Record<string, string> = {
 
 onMounted(async () => {
   const [epRes, mentionRes] = await Promise.all([
-    supabase.from('episodes').select('*').eq('ep_no', props.ep).single(),
+    supabase.from('episodes').select(EP_COLS).eq('ep_no', props.ep).single(),
     supabase
       .from('mentions')
       .select('*, stocks(ticker, name_zh, market)')
@@ -31,6 +37,20 @@ onMounted(async () => {
   mentions.value = (mentionRes.data ?? []) as Mention[]
   loading.value = false
 })
+
+// 切到逐字稿分頁才抓 transcript（大欄位，lazy load，只抓一次）
+async function openTranscript() {
+  activeTab.value = 'transcript'
+  if (transcript.value !== null || !episode.value) return
+  transcriptLoading.value = true
+  const { data } = await supabase
+    .from('episodes')
+    .select('transcript')
+    .eq('id', episode.value.id)
+    .single()
+  transcript.value = (data?.transcript as string | null) ?? ''
+  transcriptLoading.value = false
+}
 </script>
 
 <template>
@@ -54,8 +74,26 @@ onMounted(async () => {
         </ol>
       </section>
 
-      <section class="section">
-        <h2 class="section-title">提及個股（{{ mentions.length }} 檔）</h2>
+      <div class="tab-bar" role="tablist">
+        <button
+          :class="['tab', { active: activeTab === 'mentions' }]"
+          role="tab" :aria-selected="activeTab === 'mentions'"
+          @click="activeTab = 'mentions'"
+        >
+          提及個股 <span class="tab-count">{{ mentions.length }}</span>
+        </button>
+        <button
+          v-if="episode.transcript_chars"
+          :class="['tab', { active: activeTab === 'transcript' }]"
+          role="tab" :aria-selected="activeTab === 'transcript'"
+          @click="openTranscript"
+        >
+          逐字稿
+          <span class="tab-count">{{ episode.transcript_chars.toLocaleString() }} 字</span>
+        </button>
+      </div>
+
+      <section v-show="activeTab === 'mentions'" class="section" role="tabpanel">
         <div v-if="mentions.length === 0" class="empty">本集無明確個股提及</div>
         <div class="mention-list">
           <div v-for="m in mentions" :key="m.id" class="mention-card">
@@ -78,17 +116,13 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section v-if="episode.transcript" class="section">
-        <h2 class="section-title">
-          逐字稿
-          <span v-if="episode.transcript_chars" class="tx-count">
-            （{{ episode.transcript_chars.toLocaleString() }} 字）
-          </span>
-          <button class="tx-toggle" @click="showTranscript = !showTranscript">
-            {{ showTranscript ? '收合' : '展開' }}
-          </button>
-        </h2>
-        <pre v-if="showTranscript" class="transcript">{{ episode.transcript }}</pre>
+      <section
+        v-if="episode.transcript_chars"
+        v-show="activeTab === 'transcript'"
+        class="section" role="tabpanel"
+      >
+        <p v-if="transcriptLoading" class="empty">逐字稿載入中 …</p>
+        <pre v-else class="transcript">{{ transcript }}</pre>
       </section>
     </template>
     <p v-else class="empty">找不到此集數</p>
@@ -128,13 +162,20 @@ onMounted(async () => {
 .m-quote { border-left: 3px solid #4a5568; padding-left: 0.75rem; color: #a0aec0; font-size: 0.85rem; line-height: 1.6; font-style: italic; margin-bottom: 0.4rem; }
 .m-note { font-size: 0.8rem; color: #718096; }
 
-.section-title { display: flex; align-items: center; gap: 0.5rem; }
-.tx-count { font-size: 0.78rem; color: #718096; font-weight: 400; }
-.tx-toggle {
-  margin-left: auto; background: #2d3748; color: #90cdf4; border: none;
-  border-radius: 6px; padding: 0.25rem 0.7rem; cursor: pointer; font-size: 0.78rem;
+.tab-bar { display: flex; gap: 0.25rem; border-bottom: 1px solid #2d3748; margin-bottom: 1.25rem; }
+.tab {
+  background: none; border: none; cursor: pointer;
+  color: #718096; font-size: 0.92rem; font-weight: 600;
+  padding: 0.5rem 0.9rem; margin-bottom: -1px;
+  border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s;
 }
-.tx-toggle:hover { background: #374151; }
+.tab:hover { color: #a0aec0; }
+.tab.active { color: #63b3ed; border-bottom-color: #63b3ed; }
+.tab-count {
+  font-size: 0.72rem; font-weight: 600; color: #a0aec0;
+  background: #2d3748; border-radius: 9999px; padding: 0.05rem 0.45rem; margin-left: 0.3rem;
+}
+.tab.active .tab-count { background: #2a4365; color: #90cdf4; }
 .transcript {
   white-space: pre-wrap; word-break: break-word; margin: 0;
   background: #161b27; border: 1px solid #2d3748; border-radius: 8px;
