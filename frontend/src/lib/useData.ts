@@ -39,9 +39,62 @@ async function fetchRecentPrices(cutoff: string): Promise<Map<number, number[]>>
 }
 
 /**
- * 一次撈出所有 stocks + mentions（含集數日期），在前端組裝出帶時間訊號的個股清單。
- * 回傳 referenceDate（資料集最新一集日期）供顯示。
+ * 個股詳情頁專用：只撈單一股票的資料，避免載入全部個股。
+ * 並行抓：股票基本資料、該股提及、該股績效、全域 referenceDate。
  */
+export async function loadSingleStockDetail(stockId: number): Promise<{
+  stock: StockRow
+  referenceDate: string
+} | null> {
+  const [
+    { data: stockData },
+    { data: mentionData },
+    { data: perfData },
+    { data: refData },
+  ] = await Promise.all([
+    supabase.from('stocks').select('*').eq('id', stockId).single(),
+    supabase
+      .from('mentions')
+      .select('*, episodes(ep_no, title, published_at)')
+      .eq('stock_id', stockId),
+    supabase.from('stock_performance').select('*').eq('stock_id', stockId).single(),
+    supabase.from('episodes').select('published_at').order('published_at', { ascending: false }).limit(1),
+  ])
+
+  if (!stockData) return null
+
+  const referenceDate =
+    (refData?.[0]?.published_at as string | undefined) ??
+    new Date().toISOString().slice(0, 10)
+
+  const rawMentions = (mentionData ?? []) as (Mention & {
+    episodes: { ep_no: number; title: string; published_at: string | null }
+  })[]
+
+  const mentions: MentionWithTime[] = rawMentions
+    .filter((m) => m.episodes?.published_at)
+    .map((m) => {
+      const published = m.episodes.published_at as string
+      const daysAgo = daysBetween(published, referenceDate)
+      return { ...m, published_at: published, days_ago: daysAgo, freshness: freshness(daysAgo) }
+    })
+
+  if (mentions.length === 0) return null
+
+  const stock = stockData as Stock
+  return {
+    stock: {
+      ...stock,
+      mentions,
+      signal: computeSignal(mentions, referenceDate),
+      performance: (perfData as StockPerformance | null) ?? null,
+      recent: [],
+    },
+    referenceDate,
+  }
+}
+
+
 export async function loadStockSignals(): Promise<{
   stocks: StockRow[]
   referenceDate: string

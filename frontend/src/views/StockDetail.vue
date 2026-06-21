@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
-import { loadStockSignals, type StockRow } from '@/lib/useData'
+import { loadSingleStockDetail, type StockRow } from '@/lib/useData'
 import { FRESHNESS_META, relativeTime } from '@/lib/signal'
 import { pct, rate, retColor } from '@/lib/format'
 import { useQuerySync } from '@/lib/useQuerySync'
@@ -31,14 +31,9 @@ const fromDate = computed<string | null>(() => {
   return new Date(Date.now() - r.days * 86_400_000).toISOString().slice(0, 10)
 })
 
-// 兩張圖共用的 x 時間軸範圍，確保時間刻度對齊
-const ALL_LOOKBACK_DAYS = 430
+// 兩張圖共用的 x 時間軸範圍；「全部」時傳 null，讓各圖 fitContent() 顯示全部資料
 const axisEnd = computed(() => new Date().toISOString().slice(0, 10))
-const axisStart = computed(
-  () =>
-    fromDate.value ??
-    new Date(Date.now() - ALL_LOOKBACK_DAYS * 86_400_000).toISOString().slice(0, 10),
-)
+const axisStart = computed<string | null>(() => fromDate.value)
 
 const dirColor: Record<string, string> = {
   看多: '#68d391',
@@ -57,9 +52,11 @@ const timeline = computed(() =>
 const latest = computed(() => timeline.value[0] ?? null)
 
 onMounted(async () => {
-  const res = await loadStockSignals()
-  referenceDate.value = res.referenceDate
-  row.value = res.stocks.find((s) => s.id === Number(props.id)) ?? null
+  const res = await loadSingleStockDetail(Number(props.id))
+  if (res) {
+    referenceDate.value = res.referenceDate
+    row.value = res.stock
+  }
   loading.value = false
 })
 </script>
