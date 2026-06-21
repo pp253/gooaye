@@ -8,6 +8,7 @@ import { pct, retColor } from '@/lib/format'
 import { useQuerySync } from '@/lib/useQuerySync'
 import Sparkline from '@/components/Sparkline.vue'
 import FreshnessLabel from '@/components/FreshnessLabel.vue'
+import ScoreLabel from '@/components/ScoreLabel.vue'
 import InfoTip from '@/components/InfoTip.vue'
 
 const rows = ref<StockRow[]>([])
@@ -144,18 +145,7 @@ onMounted(async () => {
             </RouterLink>
           </td>
           <td>
-            <div class="score-cell">
-              <div class="score-bar-track">
-                <div class="score-bar"
-                  :style="{
-                    width: Math.min(100, Math.abs(r.signal.score) * 40) + '%',
-                    background: r.signal.score >= 0 ? '#68d391' : '#fc8181',
-                  }" />
-              </div>
-              <span class="score-num" :style="{ color: r.signal.score >= 0 ? '#68d391' : '#fc8181' }">
-                {{ r.signal.score >= 0 ? '+' : '' }}{{ r.signal.score.toFixed(2) }}
-              </span>
-            </div>
+            <ScoreLabel :score="r.signal.score" />
           </td>
           <td>
             <span class="dir" :style="{ color: dirColor[r.signal.latest_direction] }">
@@ -228,11 +218,6 @@ onMounted(async () => {
 .pos-flag { font-size: 0.7rem; color: #fc8181; }
 .type-badge { font-size: 0.68rem; padding: 0.06rem 0.4rem; border-radius: 4px; background: #3a3052; color: #d6bcfa; }
 .type-badge.etf { background: #1e3a3a; color: #9ae6cd; }
-
-.score-cell { display: flex; align-items: center; gap: 0.5rem; }
-.score-bar-track { width: 70px; height: 6px; background: #2d3748; border-radius: 3px; overflow: hidden; }
-.score-bar { height: 100%; border-radius: 3px; }
-.score-num { font-variant-numeric: tabular-nums; font-size: 0.82rem; font-weight: 600; min-width: 3rem; }
 
 .dir { font-weight: 600; }
 .fresh { font-size: 0.82rem; font-weight: 500; }

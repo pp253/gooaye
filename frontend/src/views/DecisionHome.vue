@@ -6,6 +6,7 @@ import { TRADEABLE_TYPES } from '@/lib/types'
 import { pct, retColor } from '@/lib/format'
 import { useQuerySync } from '@/lib/useQuerySync'
 import FreshnessLabel from '@/components/FreshnessLabel.vue'
+import ScoreLabel from '@/components/ScoreLabel.vue'
 
 const rows = ref<StockRow[]>([])
 const referenceDate = ref('')
@@ -19,10 +20,12 @@ const dirColor: Record<string, string> = {
 
 const assetView = ref<'tradeable' | 'theme' | 'all'>('tradeable')
 const market = ref<'ALL' | 'TW' | 'US'>('ALL')
+const viewMode = ref<'card' | 'table'>('card')
 
 useQuerySync({
   asset: { ref: assetView, default: 'tradeable' },
   market: { ref: market, default: 'ALL' },
+  view: { ref: viewMode, default: 'card' },
 })
 
 // 套用資產類型 + 市場篩選後的基底
@@ -94,12 +97,18 @@ onMounted(async () => {
             {{ f === 'ALL' ? '全部市場' : f }}
           </button>
         </div>
+        <div class="ctrl-group ctrl-view">
+          <button :class="['chip', { active: viewMode === 'card' }]" @click="viewMode = 'card'" title="卡片">⊞</button>
+          <button :class="['chip', { active: viewMode === 'table' }]" @click="viewMode = 'table'" title="列表">☰</button>
+        </div>
       </div>
 
+      <!-- ══ 有部位 ══ -->
       <section class="board">
         <h2 class="board-title">🔴 謝孟恭有部位</h2>
         <p class="board-desc">他自己的錢也在裡面——最值得參考的訊號</p>
-        <div class="card-row">
+        <!-- card -->
+        <div v-if="viewMode === 'card'" class="card-row">
           <RouterLink v-for="r in hasPosition" :key="r.id" :to="`/stocks/${r.id}`" class="sig-card">
             <div class="sc-top">
               <span class="sc-ticker">{{ r.ticker }}</span>
@@ -109,25 +118,41 @@ onMounted(async () => {
               <span class="sc-dir" :style="{ color: dirColor[r.signal.latest_direction] }">{{ r.signal.latest_direction }}</span>
               <span class="sc-score">分數 {{ r.signal.score.toFixed(2) }}</span>
             </div>
-            <div class="sc-fresh">
-              <FreshnessLabel :days-ago="r.signal.latest_days_ago" />
-            </div>
+            <div class="sc-fresh"><FreshnessLabel :days-ago="r.signal.latest_days_ago" /></div>
             <div v-if="r.performance?.current_price" class="sc-price">
               {{ r.performance.current_price }}
-              <span v-if="r.performance.ret_since_last_bull != null"
-                :style="{ color: retColor(r.performance.ret_since_last_bull) }">
+              <span v-if="r.performance.ret_since_last_bull != null" :style="{ color: retColor(r.performance.ret_since_last_bull) }">
                 · 最近看多 {{ pct(r.performance.ret_since_last_bull) }}
               </span>
             </div>
           </RouterLink>
           <p v-if="hasPosition.length === 0" class="empty">近期無此類訊號</p>
         </div>
+        <!-- table -->
+        <template v-else>
+          <p v-if="hasPosition.length === 0" class="empty">近期無此類訊號</p>
+          <table v-else class="d-table">
+            <thead><tr><th>個股</th><th>方向</th><th>分數</th><th>現價</th><th>最近看多</th><th>時效</th></tr></thead>
+            <tbody>
+              <tr v-for="r in hasPosition" :key="r.id">
+                <td><RouterLink :to="`/stocks/${r.id}`" class="tl-link"><b class="tl-ticker">{{ r.ticker }}</b> {{ r.name_zh }}</RouterLink></td>
+                <td><span :style="{ color: dirColor[r.signal.latest_direction] }">{{ r.signal.latest_direction }}</span></td>
+                <td><ScoreLabel :score="r.signal.score" /></td>
+                <td class="num">{{ r.performance?.current_price ?? '—' }}</td>
+                <td class="num" :style="{ color: retColor(r.performance?.ret_since_last_bull) }">{{ pct(r.performance?.ret_since_last_bull) }}</td>
+                <td><FreshnessLabel :days-ago="r.signal.latest_days_ago" /></td>
+              </tr>
+            </tbody>
+          </table>
+        </template>
       </section>
 
+      <!-- ══ 高分看多 ══ -->
       <section class="board">
         <h2 class="board-title">🟢 高分看多</h2>
         <p class="board-desc">近期語氣積極、且經時間加權後分數最高</p>
-        <div class="card-row">
+        <!-- card -->
+        <div v-if="viewMode === 'card'" class="card-row">
           <RouterLink v-for="r in topBull" :key="r.id" :to="`/stocks/${r.id}`" class="sig-card">
             <div class="sc-top">
               <span class="sc-ticker">{{ r.ticker }}</span>
@@ -137,25 +162,41 @@ onMounted(async () => {
             <div class="sc-mid">
               <span class="sc-score-big" :style="{ color: '#68d391' }">+{{ r.signal.score.toFixed(2) }}</span>
             </div>
-            <div class="sc-fresh">
-              <FreshnessLabel :days-ago="r.signal.latest_days_ago" />
-            </div>
+            <div class="sc-fresh"><FreshnessLabel :days-ago="r.signal.latest_days_ago" /></div>
             <div v-if="r.performance?.current_price" class="sc-price">
               {{ r.performance.current_price }}
-              <span v-if="r.performance.ret_since_last_bull != null"
-                :style="{ color: retColor(r.performance.ret_since_last_bull) }">
+              <span v-if="r.performance.ret_since_last_bull != null" :style="{ color: retColor(r.performance.ret_since_last_bull) }">
                 · 最近看多 {{ pct(r.performance.ret_since_last_bull) }}
               </span>
             </div>
           </RouterLink>
           <p v-if="topBull.length === 0" class="empty">近期無此類訊號</p>
         </div>
+        <!-- table -->
+        <template v-else>
+          <p v-if="topBull.length === 0" class="empty">近期無此類訊號</p>
+          <table v-else class="d-table">
+            <thead><tr><th>個股</th><th>連多</th><th>分數</th><th>現價</th><th>最近看多</th><th>時效</th></tr></thead>
+            <tbody>
+              <tr v-for="r in topBull" :key="r.id">
+                <td><RouterLink :to="`/stocks/${r.id}`" class="tl-link"><b class="tl-ticker">{{ r.ticker }}</b> {{ r.name_zh }}</RouterLink></td>
+                <td class="num">{{ r.signal.bull_streak >= 2 ? `🔥${r.signal.bull_streak}` : r.signal.bull_streak }}</td>
+                <td><ScoreLabel :score="r.signal.score" /></td>
+                <td class="num">{{ r.performance?.current_price ?? '—' }}</td>
+                <td class="num" :style="{ color: retColor(r.performance?.ret_since_last_bull) }">{{ pct(r.performance?.ret_since_last_bull) }}</td>
+                <td><FreshnessLabel :days-ago="r.signal.latest_days_ago" /></td>
+              </tr>
+            </tbody>
+          </table>
+        </template>
       </section>
 
+      <!-- ══ 近期首次提及 ══ -->
       <section class="board">
         <h2 class="board-title">🆕 近期首次提及</h2>
         <p class="board-desc">近一個月內第一次被謝孟恭談到的標的（{{ newlyMentioned.length }} 檔）——新進場的標的，短期注意流動性相對低</p>
-        <div class="card-row">
+        <!-- card -->
+        <div v-if="viewMode === 'card'" class="card-row">
           <RouterLink v-for="r in newlyMentioned" :key="r.id" :to="`/stocks/${r.id}`" class="sig-card new-card">
             <div class="sc-top">
               <span class="sc-ticker">{{ r.ticker }}</span>
@@ -164,20 +205,34 @@ onMounted(async () => {
             <div class="sc-mid">
               <span class="sc-dir" :style="{ color: dirColor[r.signal.latest_direction] }">{{ r.signal.latest_direction }}</span>
             </div>
-            <div class="sc-fresh" style="color: #9ae6b4">
-              🆕 首次：{{ r.signal.first_mention_date }}
-            </div>
-            <div class="sc-fresh">
-              <FreshnessLabel :days-ago="r.signal.latest_days_ago" />
-            </div>
+            <div class="sc-fresh" style="color: #9ae6b4">🆕 首次：{{ r.signal.first_mention_date }}</div>
+            <div class="sc-fresh"><FreshnessLabel :days-ago="r.signal.latest_days_ago" /></div>
           </RouterLink>
           <p v-if="newlyMentioned.length === 0" class="empty">近一個月無新首次提及的標的</p>
         </div>
+        <!-- table -->
+        <template v-else>
+          <p v-if="newlyMentioned.length === 0" class="empty">近一個月無新首次提及的標的</p>
+          <table v-else class="d-table">
+            <thead><tr><th>個股</th><th>方向</th><th>首次提及</th><th>最近提及</th></tr></thead>
+            <tbody>
+              <tr v-for="r in newlyMentioned" :key="r.id">
+                <td><RouterLink :to="`/stocks/${r.id}`" class="tl-link"><b class="tl-ticker">{{ r.ticker }}</b> {{ r.name_zh }}</RouterLink></td>
+                <td><span :style="{ color: dirColor[r.signal.latest_direction] }">{{ r.signal.latest_direction }}</span></td>
+                <td style="color:#9ae6b4"><FreshnessLabel :days-ago="r.signal.first_mention_days_ago" /></td>
+                <td><FreshnessLabel :days-ago="r.signal.latest_days_ago" /></td>
+              </tr>
+            </tbody>
+          </table>
+        </template>
       </section>
 
-      <section class="board">        <h2 class="board-title">🆕 最新提及</h2>
+      <!-- ══ 最新提及 ══ -->
+      <section class="board">
+        <h2 class="board-title">🆕 最新提及</h2>
         <p class="board-desc">近一個月內被談到的標的（{{ recent.length }} 檔）</p>
-        <div class="card-row">
+        <!-- card -->
+        <div v-if="viewMode === 'card'" class="card-row">
           <RouterLink v-for="r in recent" :key="r.id" :to="`/stocks/${r.id}`" class="sig-card">
             <div class="sc-top">
               <span class="sc-ticker">{{ r.ticker }}</span>
@@ -186,18 +241,28 @@ onMounted(async () => {
             <div class="sc-mid">
               <span class="sc-dir" :style="{ color: dirColor[r.signal.latest_direction] }">{{ r.signal.latest_direction }}</span>
             </div>
-            <div class="sc-fresh">
-              <FreshnessLabel :days-ago="r.signal.latest_days_ago" />
-            </div>
+            <div class="sc-fresh"><FreshnessLabel :days-ago="r.signal.latest_days_ago" /></div>
             <div v-if="r.performance?.current_price" class="sc-price">
               {{ r.performance.current_price }}
-              <span v-if="r.performance.ret_since_last_bull != null"
-                :style="{ color: retColor(r.performance.ret_since_last_bull) }">
+              <span v-if="r.performance.ret_since_last_bull != null" :style="{ color: retColor(r.performance.ret_since_last_bull) }">
                 · 最近看多 {{ pct(r.performance.ret_since_last_bull) }}
               </span>
             </div>
           </RouterLink>
         </div>
+        <!-- table -->
+        <table v-else class="d-table">
+          <thead><tr><th>個股</th><th>方向</th><th>現價</th><th>最近看多</th><th>時效</th></tr></thead>
+          <tbody>
+            <tr v-for="r in recent" :key="r.id">
+              <td><RouterLink :to="`/stocks/${r.id}`" class="tl-link"><b class="tl-ticker">{{ r.ticker }}</b> {{ r.name_zh }}</RouterLink></td>
+              <td><span :style="{ color: dirColor[r.signal.latest_direction] }">{{ r.signal.latest_direction }}</span></td>
+              <td class="num">{{ r.performance?.current_price ?? '—' }}</td>
+              <td class="num" :style="{ color: retColor(r.performance?.ret_since_last_bull) }">{{ pct(r.performance?.ret_since_last_bull) }}</td>
+              <td><FreshnessLabel :days-ago="r.signal.latest_days_ago" /></td>
+            </tr>
+          </tbody>
+        </table>
       </section>
     </template>
   </div>
@@ -212,6 +277,8 @@ onMounted(async () => {
 
 .controls { display: flex; flex-wrap: wrap; gap: 1.25rem; margin-bottom: 1.75rem; }
 .ctrl-group { display: flex; align-items: center; gap: 0.4rem; }
+
+.ctrl-view { margin-left: auto; }
 
 .chip {
   background: #2d3748; color: #a0aec0; border: none; border-radius: 6px;
@@ -236,6 +303,20 @@ onMounted(async () => {
 .sig-card:hover { border-color: #63b3ed; background: #1e2535; }
 .new-card { border-color: #2d4a3e; }
 .new-card:hover { border-color: #9ae6b4; }
+
+/* ── Table view ────────────────────────────────── */
+.d-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+.d-table th {
+  text-align: left; padding: 0.5rem 0.7rem;
+  background: #1a1f2e; color: #718096; font-size: 0.76rem; font-weight: 600;
+  border-bottom: 1px solid #2d3748; white-space: nowrap;
+}
+.d-table td { padding: 0.5rem 0.7rem; border-bottom: 1px solid #1e2535; vertical-align: middle; white-space: nowrap; }
+.d-table tr:hover td { background: #1a1f2e; }
+.d-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.tl-link { text-decoration: none; color: inherit; display: flex; align-items: baseline; gap: 0.4rem; }
+.tl-link:hover .tl-ticker { text-decoration: underline; }
+.tl-ticker { font-family: monospace; font-weight: 700; color: #90cdf4; }
 
 .sc-top { display: flex; align-items: baseline; gap: 0.4rem; }
 .sc-ticker { font-family: monospace; font-weight: 700; color: #90cdf4; font-size: 0.95rem; }
