@@ -14,6 +14,10 @@ export interface Episode {
   summary: string[]
   topics: string[]
   created_at: string
+  // 逐字稿欄位大，僅單集詳情查詢；列表頁明列欄位排除以下三項
+  transcript?: string | null
+  transcript_chars?: number | null
+  site_desc?: string | null
 }
 
 export interface Stock {

@@ -91,7 +91,7 @@ gooaye/
 │           ├── BacktestView.vue ← 回測：三策略表、資金曲線、區間篩選、最佳/最差、命中率
 │           ├── EpisodeList.vue / EpisodeDetail.vue
 │           └── router/index.ts
-└── supabase/migrations/         ← _init / _asset_type / _analytics / _auth_gate / _bull_stats / 20260621000003_advisor_security_definer
+└── supabase/migrations/         ← _init / _asset_type / _analytics / _auth_gate / _bull_stats / _advisor_security_definer / 20260621000004_episode_transcript
 ```
 
 ### 圖表套件（2026-06-21 起，不再手寫 SVG）
@@ -112,7 +112,7 @@ uv sync                                   # 還原環境（首次/換機）
 uv run python scripts/scrape.py --latest  # 查詢 pack 最新集數（不爬）
 uv run python scripts/scrape.py 622 671   # 1. 從 pack 抓逐字稿 → data/raw/
 uv run python scripts/extract.py 622 671  # 2. OpenAI 抽取 → data/extracted/（有 API 成本）
-uv run python scripts/load_db.py 622 671  # 3. 正規化 + 寫入 Supabase
+uv run python scripts/load_db.py 622 671  # 3. 正規化 + 寫入 Supabase（同時讀 data/raw/ 把逐字稿+站方摘要寫進 episodes）
 uv run python scripts/fetch_prices.py     # 4. yfinance 抓股價 → prices 表
 uv run python scripts/run_analytics.py    # 5. 算 stock_performance + 跑回測
 ```
@@ -135,7 +135,7 @@ uv run python scripts/run_analytics.py    # 5. 算 stock_performance + 跑回測
 ### Schema（表）
 | 表 | 用途 | 關鍵欄位 |
 |---|---|---|
-| `episodes` | 一集一列 | ep_no, title, source_url, **published_at**, summary(text[]), topics(text[]) |
+| `episodes` | 一集一列 | ep_no, title, source_url, **published_at**, summary(text[]), topics(text[]), **transcript**(text 逐字稿), transcript_chars(int), site_desc(text 站方摘要) |
 | `stocks` | 個股主檔 | ticker, market(TW/US/OTHER/UNKNOWN), name_zh, name_en, **asset_type**(個股/ETF/題材/指數/商品), unique(ticker,market) |
 | `mentions` | 一集提到一檔一次 | episode_id, stock_id, name_raw, ticker_guess, market, asset_type, direction(看多/看空/中性), confidence(0-1), has_position, quote, note |
 | `prices` | 日收盤 | stock_id, date, close, unique(stock_id,date) |
@@ -172,8 +172,9 @@ uv run python scripts/run_analytics.py    # 5. 算 stock_performance + 跑回測
 5. **`supabase db push` 的 Docker 警告可忽略** — cloud push 會成功。
 6. **PostgREST 單次查詢上限 1000 列** — 抓全量（prices、回測）要分頁，見 `analytics/prices.py` 與 `useData.ts` 的分頁寫法。
 7. **題材 vs 個股** — 個股追蹤頁預設只顯示可交易（個股+ETF），題材分流到「題材/指數」分頁。正規化邏輯集中在 `normalize/canonical.py`，要加新股/別名就往對照表加一行。
-8. **兩張圖時間軸對齊靠共用 axisStart/axisEnd + 相同 PAD.left/W**，改其中一張的幾何要同步另一張。
+8. **圖表已改用套件**（PriceChart=TradingView Lightweight Charts、Trajectory/Equity=ECharts，Sparkline 仍手寫 SVG）。Price 與 Trajectory 為兩套件，x 軸**不再像素級對齊**（已接受輕微差異）。細節見 §2「圖表套件」。
 9. **金鑰檔 gitignored** — 同一台機器的新 session 讀得到 `.env`；換機要從 `.env.example` 重建並重新填 key（見 §7）。
+10. **逐字稿是大欄位** — `episodes.transcript` 平均 ~21k 字。**列表/批次查 episodes 要明列欄位排除 transcript**（見 `EpisodeList.vue`）；只有單集詳情（`EpisodeDetail.vue`）才 select 到它。
 
 ---
 

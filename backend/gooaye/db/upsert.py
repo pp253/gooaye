@@ -23,6 +23,8 @@ def upsert_episode(
     source_url: str,
     extraction: EpisodeExtraction,
     published_at: str | None = None,
+    transcript: str | None = None,
+    site_desc: str | None = None,
 ) -> dict[str, Any]:
     """將一集的所有資料 upsert 到 Supabase，回傳 {episode_id, stock_ids, mention_count}。"""
 
@@ -36,6 +38,11 @@ def upsert_episode(
     }
     if published_at:
         ep_row["published_at"] = published_at
+    if transcript is not None:
+        ep_row["transcript"] = transcript
+        ep_row["transcript_chars"] = len(transcript)
+    if site_desc is not None:
+        ep_row["site_desc"] = site_desc
     ep_res = (
         client.table("episodes")
         .upsert(ep_row, on_conflict="ep_no")
@@ -93,4 +100,5 @@ def upsert_episode(
         "episode_id": episode_id,
         "stock_count": len(stock_id_map),
         "mention_count": len(mention_rows),
+        "transcript_chars": len(transcript) if transcript is not None else None,
     }

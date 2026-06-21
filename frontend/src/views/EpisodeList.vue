@@ -15,7 +15,11 @@ const DIR_ORDER: Record<Direction, number> = { 看多: 0, 中性: 1, 看空: 2 }
 
 onMounted(async () => {
   const [epRes, mRes] = await Promise.all([
-    supabase.from('episodes').select('*').order('ep_no', { ascending: false }),
+    // 明列欄位，排除大欄位 transcript/site_desc（列表不需要，避免下載全部逐字稿）
+    supabase
+      .from('episodes')
+      .select('id, ep_no, title, source_url, published_at, summary, topics, created_at')
+      .order('ep_no', { ascending: false }),
     supabase.from('mentions').select('episode_id, name_raw, direction'),
   ])
   episodes.value = (epRes.data ?? []) as Episode[]

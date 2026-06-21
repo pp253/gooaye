@@ -15,6 +15,15 @@ from gooaye.db import get_client, upsert_episode
 from gooaye.extractor.schema import EpisodeExtraction
 
 EXTRACTED_DIR = Path(__file__).resolve().parents[1] / "data" / "extracted"
+RAW_DIR = Path(__file__).resolve().parents[1] / "data" / "raw"
+
+
+def _load_raw(ep_no: int) -> dict:
+    """讀 data/raw/EP{n}.json（逐字稿來源）；缺檔回空 dict。"""
+    path = RAW_DIR / f"EP{ep_no}.json"
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def main() -> None:
@@ -32,6 +41,7 @@ def main() -> None:
             continue
         data = json.loads(path.read_text(encoding="utf-8"))
         extraction = EpisodeExtraction.model_validate(data)
+        raw = _load_raw(ep_no)  # 逐字稿 + 站方摘要
         result = upsert_episode(
             client,
             ep_no=ep_no,
@@ -39,10 +49,14 @@ def main() -> None:
             source_url=data.get("source_url", ""),
             extraction=extraction,
             published_at=data.get("published_at") or None,
+            transcript=raw.get("transcript") or None,
+            site_desc=raw.get("site_desc") or None,
         )
+        tx_n = result.get("transcript_chars")
+        tx_info = f" tx={tx_n}字" if tx_n else " tx=無"
         print(
             f"  EP{ep_no}: episode_id={result['episode_id']} "
-            f"stocks={result['stock_count']} mentions={result['mention_count']}"
+            f"stocks={result['stock_count']} mentions={result['mention_count']}{tx_info}"
         )
     print("完成")
 

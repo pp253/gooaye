@@ -8,6 +8,7 @@ const props = defineProps<{ ep: string }>()
 const episode = ref<Episode | null>(null)
 const mentions = ref<Mention[]>([])
 const loading = ref(true)
+const showTranscript = ref(false)
 
 const dirColor: Record<string, string> = {
   '看多': '#68d391',
@@ -76,6 +77,19 @@ onMounted(async () => {
           </div>
         </div>
       </section>
+
+      <section v-if="episode.transcript" class="section">
+        <h2 class="section-title">
+          逐字稿
+          <span v-if="episode.transcript_chars" class="tx-count">
+            （{{ episode.transcript_chars.toLocaleString() }} 字）
+          </span>
+          <button class="tx-toggle" @click="showTranscript = !showTranscript">
+            {{ showTranscript ? '收合' : '展開' }}
+          </button>
+        </h2>
+        <pre v-if="showTranscript" class="transcript">{{ episode.transcript }}</pre>
+      </section>
     </template>
     <p v-else class="empty">找不到此集數</p>
   </div>
@@ -113,4 +127,18 @@ onMounted(async () => {
 
 .m-quote { border-left: 3px solid #4a5568; padding-left: 0.75rem; color: #a0aec0; font-size: 0.85rem; line-height: 1.6; font-style: italic; margin-bottom: 0.4rem; }
 .m-note { font-size: 0.8rem; color: #718096; }
+
+.section-title { display: flex; align-items: center; gap: 0.5rem; }
+.tx-count { font-size: 0.78rem; color: #718096; font-weight: 400; }
+.tx-toggle {
+  margin-left: auto; background: #2d3748; color: #90cdf4; border: none;
+  border-radius: 6px; padding: 0.25rem 0.7rem; cursor: pointer; font-size: 0.78rem;
+}
+.tx-toggle:hover { background: #374151; }
+.transcript {
+  white-space: pre-wrap; word-break: break-word; margin: 0;
+  background: #161b27; border: 1px solid #2d3748; border-radius: 8px;
+  padding: 1rem 1.1rem; color: #cbd5e0; font-size: 0.86rem; line-height: 1.85;
+  font-family: inherit; max-height: 60vh; overflow-y: auto;
+}
 </style>
