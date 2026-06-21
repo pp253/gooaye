@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { loadStockSignals, type StockRow } from '@/lib/useData'
 import { FRESHNESS_META, relativeTime } from '@/lib/signal'
-import { pct, retColor } from '@/lib/format'
+import { pct, rate, retColor } from '@/lib/format'
 import { useQuerySync } from '@/lib/useQuerySync'
 import TrajectoryChart from '@/components/TrajectoryChart.vue'
 import PriceChart from '@/components/PriceChart.vue'
@@ -113,6 +113,16 @@ onMounted(async () => {
                 </span>
                 <span class="perf-sub">（{{ row.performance.last_bull_date }}）</span>
               </div>
+              <div class="perf-item" v-if="row.performance.bull_n">
+                <span class="perf-label">看多命中（持有60天）</span>
+                <span class="perf-val">
+                  勝率 {{ rate(row.performance.bull_win_rate) }}
+                  <span class="perf-mid" :style="{ color: retColor(row.performance.bull_avg_return) }">
+                    · 平均 {{ pct(row.performance.bull_avg_return) }}
+                  </span>
+                </span>
+                <span class="perf-sub">{{ row.performance.bull_n }} 次看多</span>
+              </div>
             </div>
           </template>
         </div>
@@ -199,6 +209,7 @@ onMounted(async () => {
 .perf-item { display: flex; flex-direction: column; gap: 0.15rem; }
 .perf-label { font-size: 0.72rem; color: #718096; }
 .perf-val { font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.perf-mid { font-size: 0.9rem; font-weight: 600; }
 .perf-sub { font-size: 0.7rem; color: #4a5568; }
 
 .range-bar { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 1.25rem; }

@@ -59,7 +59,10 @@ onMounted(async () => {
         <div class="mention-list">
           <div v-for="m in mentions" :key="m.id" class="mention-card">
             <div class="mention-top">
-              <span class="m-name">{{ m.name_raw }}</span>
+              <RouterLink v-if="m.stock_id" :to="`/stocks/${m.stock_id}`" class="m-name link">
+                {{ m.name_raw }} ↗
+              </RouterLink>
+              <span v-else class="m-name">{{ m.name_raw }}</span>
               <span class="m-ticker" v-if="m.ticker_guess">{{ m.ticker_guess }}</span>
               <span class="m-market">{{ m.market }}</span>
               <span class="m-dir" :style="{ color: dirColor[m.direction] }">
@@ -100,6 +103,8 @@ onMounted(async () => {
 
 .mention-top { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem; }
 .m-name { font-weight: 600; font-size: 1rem; }
+.m-name.link { color: #90cdf4; text-decoration: none; }
+.m-name.link:hover { text-decoration: underline; }
 .m-ticker { background: #2d3748; color: #90cdf4; font-size: 0.75rem; padding: 0.1rem 0.45rem; border-radius: 4px; font-family: monospace; }
 .m-market { font-size: 0.72rem; color: #718096; }
 .m-dir { font-weight: 600; font-size: 0.85rem; }

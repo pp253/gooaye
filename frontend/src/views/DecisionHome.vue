@@ -36,11 +36,11 @@ const topBull = computed(() =>
     .sort((a, b) => b.signal.score - a.signal.score)
     .slice(0, 8),
 )
-// 3. 最新提及
+// 3. 最新提及（近一個月內被談到的標的）
 const recent = computed(() =>
-  [...tradeable.value]
-    .sort((a, b) => a.signal.latest_days_ago - b.signal.latest_days_ago)
-    .slice(0, 8),
+  tradeable.value
+    .filter((r) => r.signal.latest_days_ago <= 30)
+    .sort((a, b) => a.signal.latest_days_ago - b.signal.latest_days_ago),
 )
 
 onMounted(async () => {
@@ -118,7 +118,7 @@ onMounted(async () => {
 
       <section class="board">
         <h2 class="board-title">🆕 最新提及</h2>
-        <p class="board-desc">資料集中最近被談到的標的</p>
+        <p class="board-desc">近一個月內被談到的標的（{{ recent.length }} 檔）</p>
         <div class="card-row">
           <RouterLink v-for="r in recent" :key="r.id" :to="`/stocks/${r.id}`" class="sig-card">
             <div class="sc-top">

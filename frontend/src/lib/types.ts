@@ -35,6 +35,9 @@ export interface StockPerformance {
   last_bull_date: string | null
   last_bull_price: number | null
   ret_since_last_bull: number | null
+  bull_n: number | null
+  bull_win_rate: number | null
+  bull_avg_return: number | null
 }
 
 export interface PricePoint {

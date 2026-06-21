@@ -2,17 +2,32 @@
 import { ref, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { supabase } from '@/lib/supabase'
-import type { Episode } from '@/lib/types'
+import type { Episode, Direction } from '@/lib/types'
+
+interface Chip { name: string; direction: Direction }
 
 const episodes = ref<Episode[]>([])
+const mentionsByEp = ref<Record<number, Chip[]>>({})
 const loading = ref(true)
 
+// 看多 → 中性 → 看空 的排序權重
+const DIR_ORDER: Record<Direction, number> = { 看多: 0, 中性: 1, 看空: 2 }
+
 onMounted(async () => {
-  const { data } = await supabase
-    .from('episodes')
-    .select('*')
-    .order('ep_no', { ascending: false })
-  episodes.value = (data ?? []) as Episode[]
+  const [epRes, mRes] = await Promise.all([
+    supabase.from('episodes').select('*').order('ep_no', { ascending: false }),
+    supabase.from('mentions').select('episode_id, name_raw, direction'),
+  ])
+  episodes.value = (epRes.data ?? []) as Episode[]
+
+  const map: Record<number, Chip[]> = {}
+  for (const m of mRes.data ?? []) {
+    ;(map[m.episode_id] ??= []).push({ name: m.name_raw, direction: m.direction })
+  }
+  for (const id in map) {
+    map[id].sort((a, b) => DIR_ORDER[a.direction] - DIR_ORDER[b.direction])
+  }
+  mentionsByEp.value = map
   loading.value = false
 })
 </script>
@@ -38,6 +53,15 @@ onMounted(async () => {
         </ul>
         <div class="ep-tags">
           <span v-for="t in ep.topics.slice(0, 4)" :key="t" class="tag">{{ t }}</span>
+        </div>
+        <div v-if="mentionsByEp[ep.id]?.length" class="ep-mentions">
+          <span
+            v-for="(c, i) in mentionsByEp[ep.id].slice(0, 12)" :key="i"
+            :class="['m-chip', c.direction === '看多' ? 'bull' : c.direction === '看空' ? 'bear' : 'neutral']"
+          >{{ c.name }}</span>
+          <span v-if="mentionsByEp[ep.id].length > 12" class="m-more">
+            +{{ mentionsByEp[ep.id].length - 12 }}
+          </span>
         </div>
       </RouterLink>
     </div>
@@ -84,4 +108,11 @@ onMounted(async () => {
   padding: 0.15rem 0.5rem;
   border-radius: 9999px;
 }
+
+.ep-mentions { display: flex; flex-wrap: wrap; gap: 0.3rem; border-top: 1px solid #232b3a; padding-top: 0.6rem; }
+.m-chip { font-size: 0.72rem; padding: 0.12rem 0.45rem; border-radius: 4px; }
+.m-chip.bull { background: #22543d; color: #9ae6b4; }
+.m-chip.bear { background: #5b2330; color: #feb2b2; }
+.m-chip.neutral { background: #2a3950; color: #90cdf4; }
+.m-more { font-size: 0.72rem; color: #718096; align-self: center; }
 </style>

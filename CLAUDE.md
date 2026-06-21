@@ -130,7 +130,7 @@ uv run python scripts/run_analytics.py    # 5. 算 stock_performance + 跑回測
 | `stocks` | 個股主檔 | ticker, market(TW/US/OTHER/UNKNOWN), name_zh, name_en, **asset_type**(個股/ETF/題材/指數/商品), unique(ticker,market) |
 | `mentions` | 一集提到一檔一次 | episode_id, stock_id, name_raw, ticker_guess, market, asset_type, direction(看多/看空/中性), confidence(0-1), has_position, quote, note |
 | `prices` | 日收盤 | stock_id, date, close, unique(stock_id,date) |
-| `stock_performance` | 跟單績效快照 | current_price, first_bull_*, ret_since_first_bull, last_bull_*, ret_since_last_bull |
+| `stock_performance` | 跟單績效快照 | current_price, first_bull_*, ret_since_first_bull, last_bull_*, ret_since_last_bull, **bull_n / bull_win_rate / bull_avg_return**（看多持有60天命中率） |
 | `backtest_runs` | 回測結果 | reference_date, **results(jsonb)**（內含 strategies[含每筆 trades]、hit_rate） |
 
 - 全表開 RLS、public read（前端 anon 可讀）；寫入只透過後端 service_role。

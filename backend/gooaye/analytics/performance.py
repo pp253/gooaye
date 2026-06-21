@@ -8,9 +8,38 @@
 
 from __future__ import annotations
 
+import datetime as dt
+import statistics
+
 from supabase import Client
 
-from gooaye.analytics.prices import PriceBook, load_price_book
+from gooaye.analytics.prices import PriceBook, Series, load_price_book
+
+BULL_HOLD_DAYS = 60  # 看多命中率的持有天數（與全站回測命中率一致）
+
+
+def _plus_days(date: str, days: int) -> str:
+    return (dt.date.fromisoformat(date) + dt.timedelta(days=days)).isoformat()
+
+
+def _bull_stats(series: Series, bull_dates: list[str]) -> dict:
+    """每次看多後持有 BULL_HOLD_DAYS 天的勝率與平均報酬。"""
+    rets: list[float] = []
+    for d in bull_dates:
+        e = series.on_or_after(_plus_days(d, 1))
+        if not e or e[1] == 0:
+            continue
+        x = series.on_or_after(_plus_days(e[0], BULL_HOLD_DAYS))
+        if not x or x[0] <= e[0]:
+            continue
+        rets.append(x[1] / e[1] - 1)
+    if not rets:
+        return {}
+    return {
+        "bull_n": len(rets),
+        "bull_win_rate": round(sum(r > 0 for r in rets) / len(rets), 4),
+        "bull_avg_return": round(statistics.mean(rets), 4),
+    }
 
 
 def _mentions_by_stock(client: Client) -> dict[int, list[dict]]:
@@ -60,6 +89,8 @@ def compute_performance(client: Client, book: PriceBook | None = None) -> int:
                 row["last_bull_date"] = bulls[-1]["date"]
                 row["last_bull_price"] = last[1]
                 row["ret_since_last_bull"] = round(cur_price / last[1] - 1, 4)
+
+            row.update(_bull_stats(series, [m["date"] for m in bulls]))
 
         rows.append(row)
 
