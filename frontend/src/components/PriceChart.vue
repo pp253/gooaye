@@ -29,13 +29,16 @@ const loading = ref(true)
 
 const dirColor: Record<string, string> = { 看多: '#68d391', 看空: '#fc8181', 中性: '#90cdf4' }
 
-// 套用時間範圍：只保留 fromDate（含）之後的股價與提及
+// 套用時間範圍：fromDate 為使用者選的範圍；「全部」時退回 axisStart 當預設 lookback
+const effectiveFrom = computed(() => props.fromDate ?? props.axisStart ?? null)
 const vis = computed(() =>
-  props.fromDate ? prices.value.filter((p) => p.date >= props.fromDate!) : prices.value,
+  effectiveFrom.value
+    ? prices.value.filter((p) => p.date >= effectiveFrom.value!)
+    : prices.value,
 )
 const visMentions = computed(() =>
-  props.fromDate
-    ? props.mentions.filter((m) => m.published_at >= props.fromDate!)
+  effectiveFrom.value
+    ? props.mentions.filter((m) => m.published_at >= effectiveFrom.value!)
     : props.mentions,
 )
 
@@ -149,25 +152,28 @@ function applyData() {
     .sort((a, b) => (a.time < b.time ? -1 : 1))
   markersApi.setMarkers(markers)
 
-  // 套用共用可視範圍（與演變圖大致對齊）；否則自適應
-  if (props.axisStart && props.axisEnd) {
-    chart.timeScale().setVisibleRange({
-      from: props.axisStart as Time,
-      to: props.axisEnd as Time,
-    })
-  } else {
-    chart.timeScale().fitContent()
-  }
+  // 資料已依時間範圍夾過，直接 fitContent；避免 setVisibleRange 在
+  // to 超過最後交易日時拋 "Value is null"
+  chart.timeScale().fitContent()
 }
 
 async function load() {
   loading.value = true
-  const { data } = await supabase
-    .from('prices')
-    .select('date, close')
-    .eq('stock_id', props.stockId)
-    .order('date')
-  prices.value = (data ?? []) as PricePoint[]
+  // PostgREST 單次上限 1000 列；5 年股價 >1000 筆，需分頁抓全量
+  const PAGE = 1000
+  const all: PricePoint[] = []
+  for (let from = 0; ; from += PAGE) {
+    const { data } = await supabase
+      .from('prices')
+      .select('date, close')
+      .eq('stock_id', props.stockId)
+      .order('date')
+      .range(from, from + PAGE - 1)
+    if (!data || data.length === 0) break
+    all.push(...(data as PricePoint[]))
+    if (data.length < PAGE) break
+  }
+  prices.value = all
   loading.value = false
   await nextTick()
   if (!chart && container.value) buildChart()

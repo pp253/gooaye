@@ -7,6 +7,8 @@ import { TRADEABLE_TYPES } from '@/lib/types'
 import { pct, retColor } from '@/lib/format'
 import { useQuerySync } from '@/lib/useQuerySync'
 import Sparkline from '@/components/Sparkline.vue'
+import InfoTip from '@/components/InfoTip.vue'
+import { HALF_LIFE_DAYS } from '@/lib/signal'
 
 const rows = ref<StockRow[]>([])
 const referenceDate = ref('')
@@ -101,7 +103,21 @@ onMounted(async () => {
       <thead>
         <tr>
           <th>個股</th>
-          <th>訊號分數</th>
+          <th>
+            <span class="th-info">
+              訊號分數
+              <InfoTip label="訊號分數怎麼算的" :width="300">
+                把他每次提到這檔的「方向 × 信心」依時間加權後加總：
+                <ul class="info-list">
+                  <li>方向權重：看多 <b>+1</b>、中性 <b>0</b>、看空 <b>−1</b></li>
+                  <li>乘上當次<b>信心</b>（0–100%）</li>
+                  <li>再乘<b>時間衰減</b>：半衰期 {{ HALF_LIFE_DAYS }} 天，越久遠權重越低</li>
+                </ul>
+                公式：<code>Σ 方向 × 信心 × 0.5^(距今天數 / {{ HALF_LIFE_DAYS }})</code><br />
+                分數<b>正</b>＝近期偏多、<b>負</b>＝近期偏空；數字越大代表近期看法越積極且一致。
+              </InfoTip>
+            </span>
+          </th>
           <th>目前立場</th>
           <th>現價</th>
           <th>近30天</th>
@@ -191,6 +207,9 @@ onMounted(async () => {
   font-size: 0.76rem; font-weight: 600; border-bottom: 1px solid #2d3748;
   white-space: nowrap;
 }
+.th-info { display: inline-flex; align-items: center; gap: 0.15rem; }
+.info-list { margin: 0.4rem 0; padding-left: 1.1rem; }
+.info-list li { margin-bottom: 0.2rem; }
 .stock-table td { padding: 0.6rem 0.7rem; border-bottom: 1px solid #1e2535; font-size: 0.86rem; vertical-align: middle; white-space: nowrap; }
 .stock-table tr:hover td { background: #1a1f2e; }
 
