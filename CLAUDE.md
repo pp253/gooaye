@@ -217,6 +217,22 @@ npm run build                                # 型別檢查 + 打包（改完務
 
 ---
 
+## 11. 登入 / 權限（Supabase Auth）
+
+- **登入方式**：Google OAuth + Email magic link（無密碼）。Auth 由 Supabase 託管。
+- **權限**：email **白名單**。`allowed_emails` 表存允許的 email；`is_allowed()`（SECURITY DEFINER）比對登入者 JWT 的 email。
+- **資料保護**：六張資料表 RLS 改成 `using (is_allowed())` — 未登入/非白名單 **查不到任何資料**（anon 直接查 REST 也是空）。migration：`20260621000001_auth_gate.sql`。
+- **加人**：往 `allowed_emails` insert 一列 email（小寫）即可，不需改 code。
+- **前端**：`lib/auth.ts`（session/allowed 狀態、signInWithGoogle/Email、signOut）；`App.vue` 是登入閘門；`LoginView.vue` 登入頁；登入後呼叫 RPC `is_allowed()` 決定顯示 app 或「無權限」。
+- **Google provider 設定**：寫在 `supabase/config.toml` 的 `[auth.external.google]`，client_id 明碼（非機密）、secret 用 `env(SUPABASE_AUTH_GOOGLE_SECRET)`；site_url / additional_redirect_urls 也在 `[auth]`。
+  - 套用方式：`set -a && . ./.env && set +a && npx supabase config push`（需 .env 內的 GOOGLE client id/secret）。
+  - **Google OAuth client 本身只能在 Google Cloud Console 建**（gcloud 不支援），redirect URI = `https://ydzqxeckreqpoydpwbtf.supabase.co/auth/v1/callback`。
+  - ⚠️ `config push` 以 config.toml 為準覆蓋遠端；注意 `[storage.vector] enabled` 要維持 `false`（免費方案不支援，否則 push 會 402）。
+- **部署上線**：把正式網址加進 config.toml 的 `site_url` / `additional_redirect_urls` 與 Google client 的 redirect/origins，再 `config push`。
+- 金鑰：`.env` 的 `SUPABASE_AUTH_GOOGLE_CLIENT_ID` / `SUPABASE_AUTH_GOOGLE_SECRET`（gitignored）。
+
+---
+
 ## 10. 互動慣例（沿用至今）
 
 - 回繁中、用表格比較、用 AskUserQuestion 問選擇、執行前等使用者說 proceed/ok。
