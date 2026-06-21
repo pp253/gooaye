@@ -95,10 +95,23 @@ export async function loadSingleStockDetail(stockId: number): Promise<{
 }
 
 
+// ── 模組層快取（5 分鐘 TTL，頁面間切換時避免重新抓取） ─────────────
+let _cache: { stocks: StockRow[]; referenceDate: string } | null = null
+let _cacheAt = 0
+const CACHE_TTL_MS = 5 * 60 * 1000
+
+/** 清除快取（資料更新後可強制重刷） */
+export function invalidateStockCache() {
+  _cache = null
+  _cacheAt = 0
+}
+
 export async function loadStockSignals(): Promise<{
   stocks: StockRow[]
   referenceDate: string
 }> {
+  if (_cache && Date.now() - _cacheAt < CACHE_TTL_MS) return _cache
+
   const [{ data: stockData }, { data: mentionData }, { data: perfData }] = await Promise.all([
     supabase.from('stocks').select('*'),
     supabase
@@ -113,9 +126,6 @@ export async function loadStockSignals(): Promise<{
     ((perfData ?? []) as StockPerformance[]).map((p) => [p.stock_id, p]),
   )
 
-  // 近 ~45 天股價（約 30 個交易日）給迷你走勢圖
-  const cutoff = new Date(Date.now() - 45 * 86_400_000).toISOString().slice(0, 10)
-  const recentByStock = await fetchRecentPrices(cutoff)
   const rawMentions = (mentionData ?? []) as (Mention & {
     episodes: { ep_no: number; title: string; published_at: string | null }
   })[]
@@ -154,10 +164,26 @@ export async function loadStockSignals(): Promise<{
         mentions,
         signal: computeSignal(mentions, referenceDate),
         performance: perfByStock.get(s.id) ?? null,
-        recent: recentByStock.get(s.id) ?? [],
+        recent: [] as number[], // sparkline 由 loadSparklines() 非同步補入
       }
     })
     .filter((r): r is StockRow => r !== null)
 
-  return { stocks: rows, referenceDate }
+  _cache = { stocks: rows, referenceDate }
+  _cacheAt = Date.now()
+  return _cache
+}
+
+/**
+ * 第二階段：補充各股近 30 天收盤（給 Sparkline 用）。
+ * 傳入 rows ref 直接 mutate，讓 UI 漸進更新。
+ */
+export async function loadSparklines(rows: StockRow[]): Promise<void> {
+  const cutoff = new Date(Date.now() - 45 * 86_400_000).toISOString().slice(0, 10)
+  const recentByStock = await fetchRecentPrices(cutoff)
+  for (const r of rows) {
+    r.recent = recentByStock.get(r.id) ?? []
+  }
+  // 同時更新快取
+  if (_cache) _cache.stocks = rows
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
-import { loadStockSignals, type StockRow } from '@/lib/useData'
+import { loadStockSignals, loadSparklines, type StockRow } from '@/lib/useData'
 import { FRESHNESS_META, relativeTime } from '@/lib/signal'
 import { TRADEABLE_TYPES } from '@/lib/types'
 import { pct, retColor } from '@/lib/format'
@@ -56,6 +56,8 @@ onMounted(async () => {
   rows.value = res.stocks
   referenceDate.value = res.referenceDate
   loading.value = false
+  // 第二階段：非同步補 sparkline，不阻塞主表顯示
+  loadSparklines(rows.value)
 })
 </script>
 
