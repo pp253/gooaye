@@ -1,5 +1,16 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import {
+  createChart,
+  LineSeries,
+  createSeriesMarkers,
+  ColorType,
+  CrosshairMode,
+  type IChartApi,
+  type ISeriesApi,
+  type ISeriesMarkersPluginApi,
+  type Time,
+} from 'lightweight-charts'
 import { supabase } from '@/lib/supabase'
 import type { PricePoint } from '@/lib/types'
 import type { MentionWithTime } from '@/lib/signal'
@@ -16,6 +27,8 @@ const props = defineProps<{
 const prices = ref<PricePoint[]>([])
 const loading = ref(true)
 
+const dirColor: Record<string, string> = { 看多: '#68d391', 看空: '#fc8181', 中性: '#90cdf4' }
+
 // 套用時間範圍：只保留 fromDate（含）之後的股價與提及
 const vis = computed(() =>
   props.fromDate ? prices.value.filter((p) => p.date >= props.fromDate!) : prices.value,
@@ -26,11 +39,126 @@ const visMentions = computed(() =>
     : props.mentions,
 )
 
-const dirColor: Record<string, string> = { 看多: '#68d391', 看空: '#fc8181', 中性: '#90cdf4' }
+interface MarkerInfo {
+  ep?: number
+  date: string
+  daysAgo: number
+  dir: string
+  conf: number
+  hasPos: boolean
+  quote: string
+  color: string
+  price: number
+}
 
-const W = 680
-const H = 220
-const PAD = { top: 16, right: 16, bottom: 30, left: 52 }
+// 提及點：對齊到該日期(含)之後第一個有股價的點；key = 對齊後的股價日期
+const markerByDate = computed<Record<string, MarkerInfo>>(() => {
+  const map: Record<string, MarkerInfo> = {}
+  for (const m of visMentions.value) {
+    const idx = vis.value.findIndex((p) => p.date >= m.published_at)
+    const p = idx >= 0 ? vis.value[idx] : vis.value[vis.value.length - 1]
+    if (!p) continue
+    map[p.date] = {
+      ep: m.episodes?.ep_no,
+      date: m.published_at,
+      daysAgo: m.days_ago,
+      dir: m.direction,
+      conf: m.confidence,
+      hasPos: m.has_position,
+      quote: m.quote,
+      color: dirColor[m.direction],
+      price: p.close,
+    }
+  }
+  return map
+})
+
+// ── 圖表生命週期 ─────────────────────────────────────────────
+const container = ref<HTMLDivElement | null>(null)
+let chart: IChartApi | null = null
+let series: ISeriesApi<'Line'> | null = null
+let markersApi: ISeriesMarkersPluginApi<Time> | null = null
+
+const hovered = ref<MarkerInfo | null>(null)
+const tipPos = ref({ leftPct: 0, topPct: 0, placeBelow: false })
+
+function buildChart() {
+  if (!container.value) return
+  chart = createChart(container.value, {
+    layout: {
+      background: { type: ColorType.Solid, color: '#161b27' },
+      textColor: '#a0aec0',
+      fontSize: 10,
+    },
+    grid: {
+      vertLines: { color: '#232b3a' },
+      horzLines: { color: '#232b3a' },
+    },
+    rightPriceScale: { borderColor: '#2d3748' },
+    timeScale: { borderColor: '#2d3748', timeVisible: false },
+    crosshair: {
+      mode: CrosshairMode.Normal,
+      vertLine: { color: '#4a5568', width: 1, style: 2, labelBackgroundColor: '#1a202c' },
+      horzLine: { color: '#4a5568', width: 1, style: 2, labelBackgroundColor: '#1a202c' },
+    },
+    autoSize: true,
+  })
+  series = chart.addSeries(LineSeries, {
+    color: '#63b3ed',
+    lineWidth: 2,
+    priceLineVisible: false,
+    lastValueVisible: false,
+  })
+  markersApi = createSeriesMarkers(series, [])
+
+  chart.subscribeCrosshairMove((param) => {
+    const t = param.time as string | undefined
+    const info = t ? markerByDate.value[t] : undefined
+    if (!info || !param.point || !container.value || !series) {
+      hovered.value = null
+      return
+    }
+    const y = series.priceToCoordinate(info.price)
+    if (y == null) {
+      hovered.value = null
+      return
+    }
+    const w = container.value.clientWidth
+    const h = container.value.clientHeight
+    hovered.value = info
+    tipPos.value = {
+      leftPct: (param.point.x / w) * 100,
+      topPct: (y / h) * 100,
+      placeBelow: y < h / 2,
+    }
+  })
+}
+
+function applyData() {
+  if (!chart || !series || !markersApi) return
+  series.setData(vis.value.map((p) => ({ time: p.date as Time, value: p.close })))
+
+  const markers = Object.entries(markerByDate.value)
+    .map(([date, info]) => ({
+      time: date as Time,
+      position: 'inBar' as const,
+      color: info.color,
+      shape: (info.hasPos ? 'square' : 'circle') as 'square' | 'circle',
+      size: 1.4,
+    }))
+    .sort((a, b) => (a.time < b.time ? -1 : 1))
+  markersApi.setMarkers(markers)
+
+  // 套用共用可視範圍（與演變圖大致對齊）；否則自適應
+  if (props.axisStart && props.axisEnd) {
+    chart.timeScale().setVisibleRange({
+      from: props.axisStart as Time,
+      to: props.axisEnd as Time,
+    })
+  } else {
+    chart.timeScale().fitContent()
+  }
+}
 
 async function load() {
   loading.value = true
@@ -41,74 +169,22 @@ async function load() {
     .order('date')
   prices.value = (data ?? []) as PricePoint[]
   loading.value = false
+  await nextTick()
+  if (!chart && container.value) buildChart()
+  applyData()
 }
+
 onMounted(load)
 watch(() => props.stockId, load)
-
-const bounds = computed(() => {
-  const ps = vis.value
-  if (!ps.length) return null
-  // x 軸範圍：優先用共用軸（與演變圖對齊），否則用資料範圍
-  const tMin = props.axisStart ? Date.parse(props.axisStart) : Date.parse(ps[0].date)
-  const tMaxRaw = props.axisEnd ? Date.parse(props.axisEnd) : Date.parse(ps[ps.length - 1].date)
-  let pMin = Infinity, pMax = -Infinity
-  for (const p of ps) { pMin = Math.min(pMin, p.close); pMax = Math.max(pMax, p.close) }
-  const pad = (pMax - pMin) * 0.08 || 1
-  return { tMin, tMax: tMaxRaw <= tMin ? tMin + 1 : tMaxRaw, pMin: pMin - pad, pMax: pMax + pad }
+watch([() => props.fromDate, () => props.axisStart, () => props.axisEnd, () => props.mentions], () => {
+  if (chart) applyData()
 })
 
-function sx(t: number): number {
-  const b = bounds.value!
-  return PAD.left + ((t - b.tMin) / (b.tMax - b.tMin)) * (W - PAD.left - PAD.right)
-}
-function sy(v: number): number {
-  const b = bounds.value!
-  return PAD.top + (1 - (v - b.pMin) / (b.pMax - b.pMin)) * (H - PAD.top - PAD.bottom)
-}
-
-const linePath = computed(() => {
-  if (!bounds.value) return ''
-  return vis.value
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${sx(Date.parse(p.date)).toFixed(1)} ${sy(p.close).toFixed(1)}`)
-    .join(' ')
-})
-
-// 提及點：對齊到該日期(含)之後第一個有股價的點
-const markers = computed(() => {
-  if (!bounds.value) return []
-  return visMentions.value.map((m) => {
-    const idx = vis.value.findIndex((p) => p.date >= m.published_at)
-    const p = idx >= 0 ? vis.value[idx] : vis.value[vis.value.length - 1]
-    if (!p) return null
-    return {
-      cx: sx(Date.parse(p.date)), cy: sy(p.close),
-      color: dirColor[m.direction], hasPos: m.has_position,
-      ep: m.episodes?.ep_no, date: m.published_at, daysAgo: m.days_ago,
-      dir: m.direction, conf: m.confidence, quote: m.quote, price: p.close,
-    }
-  }).filter((x): x is NonNullable<typeof x> => x !== null)
-})
-
-// hover 狀態
-const hovered = ref<number | null>(null)
-
-const yTicks = computed(() => {
-  if (!bounds.value) return []
-  const { pMin, pMax } = bounds.value
-  return [0, 0.5, 1].map((f) => {
-    const v = pMin + (pMax - pMin) * f
-    return { y: sy(v), label: v >= 1000 ? v.toFixed(0) : v.toFixed(2) }
-  })
-})
-
-const xTicks = computed(() => {
-  if (!bounds.value) return []
-  const { tMin, tMax } = bounds.value
-  return [0, 0.25, 0.5, 0.75, 1].map((f) => {
-    const t = tMin + (tMax - tMin) * f
-    const d = new Date(t)
-    return { x: sx(t), label: `${d.getMonth() + 1}/${d.getDate()}` }
-  })
+onUnmounted(() => {
+  chart?.remove()
+  chart = null
+  series = null
+  markersApi = null
 })
 </script>
 
@@ -117,41 +193,21 @@ const xTicks = computed(() => {
     <p v-if="loading" class="pc-msg">股價載入中 …</p>
     <p v-else-if="!prices.length" class="pc-msg">此標的無股價資料</p>
     <p v-else-if="!vis.length" class="pc-msg">此時間範圍內無股價資料</p>
-    <div v-else class="pc-chart">
-    <svg :viewBox="`0 0 ${W} ${H}`" class="pc-svg">
-      <!-- y 軸格線 + 價格 -->
-      <g v-for="(tk, i) in yTicks" :key="`y${i}`">
-        <line :x1="PAD.left" :x2="W - PAD.right" :y1="tk.y" :y2="tk.y" class="grid" />
-        <text :x="PAD.left - 6" :y="tk.y + 3" class="y-label">{{ tk.label }}</text>
-      </g>
-      <!-- x 軸日期 -->
-      <text v-for="(tk, i) in xTicks" :key="`x${i}`" :x="tk.x" :y="H - 10" class="x-label">{{ tk.label }}</text>
-
-      <!-- 價格線 -->
-      <path :d="linePath" class="price-line" />
-
-      <!-- 提及點 -->
-      <g v-for="(mk, i) in markers" :key="i">
-        <circle v-if="mk.hasPos" :cx="mk.cx" :cy="mk.cy" r="7" fill="none" stroke="#f6ad55" stroke-width="2" />
-        <circle :cx="mk.cx" :cy="mk.cy" r="4.5" :fill="mk.color" stroke="#0f1117" stroke-width="1"
-          :class="{ active: hovered === i }"
-          @mouseenter="hovered = i" @mouseleave="hovered = null" />
-        <circle :cx="mk.cx" :cy="mk.cy" r="11" fill="transparent"
-          @mouseenter="hovered = i" @mouseleave="hovered = null" />
-      </g>
-    </svg>
-    <MentionTip v-if="hovered !== null && markers[hovered]"
-      :ep="markers[hovered].ep" :dir="markers[hovered].dir" :color="markers[hovered].color"
-      :date="markers[hovered].date" :days-ago="markers[hovered].daysAgo"
-      :conf="markers[hovered].conf" :has-pos="markers[hovered].hasPos" :quote="markers[hovered].quote"
-      :left-pct="markers[hovered].cx / W * 100" :top-pct="markers[hovered].cy / H * 100"
-      :place-below="markers[hovered].cy < H / 2" />
+    <div v-show="!loading && vis.length" class="pc-chart">
+      <div ref="container" class="pc-canvas"></div>
+      <MentionTip
+        v-if="hovered"
+        :ep="hovered.ep" :dir="hovered.dir" :color="hovered.color"
+        :date="hovered.date" :days-ago="hovered.daysAgo"
+        :conf="hovered.conf" :has-pos="hovered.hasPos" :quote="hovered.quote"
+        :left-pct="tipPos.leftPct" :top-pct="tipPos.topPct"
+        :place-below="tipPos.placeBelow" />
     </div>
-    <div v-if="vis.length" class="legend">
+    <div v-if="!loading && vis.length" class="legend">
       <span><i style="background:#68d391"></i>看多</span>
       <span><i style="background:#90cdf4"></i>中性</span>
       <span><i style="background:#fc8181"></i>看空</span>
-      <span><i class="ring"></i>有部位</span>
+      <span><i class="sq"></i>有部位</span>
     </div>
   </div>
 </template>
@@ -159,14 +215,8 @@ const xTicks = computed(() => {
 <style scoped>
 .pc-msg { color: #718096; font-size: 0.85rem; padding: 1rem 0; }
 .pc-chart { position: relative; }
-.pc-svg { width: 100%; height: auto; background: #161b27; border-radius: 8px; display: block; }
-.pc-svg circle { cursor: pointer; }
-.pc-svg circle.active { stroke: #fff; stroke-width: 1.5; }
-.grid { stroke: #232b3a; stroke-width: 1; }
-.y-label { font-size: 9px; fill: #718096; text-anchor: end; font-variant-numeric: tabular-nums; }
-.x-label { font-size: 10px; fill: #a0aec0; text-anchor: middle; font-variant-numeric: tabular-nums; }
-.price-line { fill: none; stroke: #63b3ed; stroke-width: 1.5; }
+.pc-canvas { width: 100%; height: 240px; border-radius: 8px; overflow: hidden; }
 .legend { display: flex; gap: 1rem; margin-top: 0.5rem; font-size: 0.75rem; color: #a0aec0; }
 .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 0.25rem; vertical-align: middle; }
-.legend i.ring { background: transparent; border: 2px solid #f6ad55; }
+.legend i.sq { border-radius: 2px; background: transparent; border: 2px solid #cbd5e0; }
 </style>

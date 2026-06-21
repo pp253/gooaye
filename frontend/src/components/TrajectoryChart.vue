@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
+import { use } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
+import { ScatterChart, LineChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent } from 'echarts/components'
+import VChart from 'vue-echarts'
 import type { MentionWithTime } from '@/lib/signal'
-import { DIRECTION_WEIGHT } from '@/lib/signal'
-import MentionTip from '@/components/MentionTip.vue'
+import { DIRECTION_WEIGHT, relativeTime } from '@/lib/signal'
+
+use([CanvasRenderer, ScatterChart, LineChart, GridComponent, TooltipComponent])
 
 const props = defineProps<{
   mentions: MentionWithTime[]
@@ -11,10 +17,6 @@ const props = defineProps<{
   axisStart?: string | null // 與股價圖共用的 x 軸起點
   axisEnd?: string | null // 與股價圖共用的 x 軸終點
 }>()
-
-const W = 680
-const H = 160
-const PAD = { top: 18, right: 16, bottom: 42, left: 52 }
 
 const dirColor: Record<string, string> = {
   看多: '#68d391',
@@ -30,139 +32,145 @@ const sorted = computed(() => {
   return [...ms].sort((a, b) => Date.parse(a.published_at) - Date.parse(b.published_at))
 })
 
-const span = computed(() => {
-  // 優先用共用軸（與股價圖對齊）
-  if (props.axisStart && props.axisEnd) {
-    const min = Date.parse(props.axisStart)
-    const max = Date.parse(props.axisEnd)
-    return { min, max: max <= min ? min + 1 : max }
-  }
-  const times = sorted.value.map((m) => Date.parse(m.published_at))
-  const min = Math.min(...times)
-  const max = Math.max(Date.parse(props.referenceDate), ...times)
-  return { min, max: max === min ? min + 1 : max }
-})
-
-function x(published: string): number {
-  const { min, max } = span.value
-  const t = Date.parse(published)
-  return PAD.left + ((t - min) / (max - min)) * (W - PAD.left - PAD.right)
-}
-// y: 看多上、看空下
-function y(dir: string): number {
-  const w = DIRECTION_WEIGHT[dir as keyof typeof DIRECTION_WEIGHT] // -1..1
-  const mid = (H - PAD.top - PAD.bottom) / 2 + PAD.top
-  return mid - w * (mid - PAD.top)
+interface MInfo {
+  ep?: number
+  date: string
+  daysAgo: number
+  dir: string
+  conf: number
+  hasPos: boolean
+  quote: string
 }
 
-const baseline = H - PAD.bottom
+function tooltipHtml(m: MInfo): string {
+  const pos = m.hasPos ? `<span style="color:#fc8181;font-size:11px;margin-left:6px">🔴 有部位</span>` : ''
+  return `
+    <div style="max-width:260px;white-space:normal">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+        <b style="color:#63b3ed">EP${m.ep}</b>
+        <b style="color:${dirColor[m.dir]}">${m.dir}</b>${pos}
+      </div>
+      <div style="font-size:11px;color:#a0aec0;margin-bottom:4px">
+        ${m.date} · ${relativeTime(m.daysAgo)} · 信心 ${Math.round(m.conf * 100)}%
+      </div>
+      <div style="font-size:12px;color:#cbd5e0;font-style:italic;line-height:1.5">「${m.quote}」</div>
+    </div>`
+}
 
-// 點多時隱藏每點 EP 標籤，避免重疊（hover 仍可看完整資訊）
-const showEpLabels = computed(() => sorted.value.length <= 14)
+const option = computed(() => {
+  const pts = sorted.value.map((m) => {
+    const info: MInfo = {
+      ep: m.episodes?.ep_no,
+      date: m.published_at,
+      daysAgo: m.days_ago,
+      dir: m.direction,
+      conf: m.confidence,
+      hasPos: m.has_position,
+      quote: m.quote,
+    }
+    return {
+      value: [Date.parse(m.published_at), DIRECTION_WEIGHT[m.direction]],
+      itemStyle: { color: dirColor[m.direction], borderColor: '#0f1117', borderWidth: 1 },
+      _m: info,
+    }
+  })
+  const ringPts = sorted.value
+    .filter((m) => m.has_position)
+    .map((m) => ({
+      value: [Date.parse(m.published_at), DIRECTION_WEIGHT[m.direction]],
+      symbolSize: 14 + m.confidence * 12,
+    }))
+  const linePts = sorted.value.map((m) => [
+    Date.parse(m.published_at),
+    DIRECTION_WEIGHT[m.direction],
+  ])
 
-const points = computed(() =>
-  sorted.value.map((m) => ({
-    cx: x(m.published_at),
-    cy: y(m.direction),
-    r: 4 + m.confidence * 6,
-    color: dirColor[m.direction],
-    hasPos: m.has_position,
-    ep: m.episodes?.ep_no,
-    date: m.published_at,
-    daysAgo: m.days_ago,
-    dir: m.direction,
-    conf: m.confidence,
-    quote: m.quote,
-  })),
-)
-
-// hover 狀態（顯示日期／集數／方向等詳細資訊）
-const hovered = ref<number | null>(null)
-
-const linePath = computed(() =>
-  points.value.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.cx} ${p.cy}`).join(' '),
-)
-
-// 底部日期刻度：在時間軸上均勻取 5 個點，標出真實日期
-const dateTicks = computed(() => {
-  const { min, max } = span.value
-  const n = 5
-  const ticks: { x: number; label: string }[] = []
-  let prevYear = 0
-  for (let i = 0; i < n; i++) {
-    const t = min + ((max - min) * i) / (n - 1)
-    const d = new Date(t)
-    const yr = d.getFullYear()
-    const md = `${d.getMonth() + 1}/${d.getDate()}`
-    // 第一個刻度、或跨年時，標出年份
-    const label = i === 0 || yr !== prevYear ? `${yr}/${md}` : md
-    prevYear = yr
-    ticks.push({
-      x: PAD.left + (i / (n - 1)) * (W - PAD.left - PAD.right),
-      label,
-    })
+  return {
+    backgroundColor: 'transparent',
+    grid: { top: 18, right: 16, bottom: 28, left: 48 },
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: '#0b0e16',
+      borderColor: '#2d3748',
+      textStyle: { color: '#e2e8f0' },
+      formatter: (p: { data?: { _m?: MInfo } }) =>
+        p.data && p.data._m ? tooltipHtml(p.data._m) : '',
+    },
+    xAxis: {
+      type: 'time',
+      min: props.axisStart ? Date.parse(props.axisStart) : undefined,
+      max: props.axisEnd ? Date.parse(props.axisEnd) : Date.parse(props.referenceDate),
+      axisLine: { lineStyle: { color: '#2d3748' } },
+      axisLabel: {
+        color: '#a0aec0',
+        fontSize: 10,
+        formatter: (v: number) => {
+          const d = new Date(v)
+          return `${d.getMonth() + 1}/${d.getDate()}`
+        },
+      },
+      splitLine: { show: true, lineStyle: { color: '#232b3a' } },
+    },
+    yAxis: {
+      type: 'value',
+      min: -1.2,
+      max: 1.2,
+      interval: 1,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: {
+        fontSize: 10,
+        fontWeight: 600,
+        formatter: (v: number) =>
+          v === 1 ? '看多' : v === 0 ? '中性' : v === -1 ? '看空' : '',
+        color: (v: number) =>
+          v === 1 ? '#68d391' : v === 0 ? '#90cdf4' : v === -1 ? '#fc8181' : '#718096',
+      },
+      splitLine: { lineStyle: { color: '#2d3748' } },
+    },
+    series: [
+      {
+        type: 'line',
+        data: linePts,
+        showSymbol: false,
+        silent: true,
+        lineStyle: { color: '#4a5568', width: 1.5 },
+        z: 1,
+      },
+      {
+        type: 'scatter',
+        data: ringPts,
+        symbol: 'circle',
+        itemStyle: { color: 'transparent', borderColor: '#f6ad55', borderWidth: 2 },
+        silent: true,
+        z: 2,
+      },
+      {
+        type: 'scatter',
+        data: pts,
+        symbolSize: (_: unknown, p: { data: { _m: MInfo } }) => 8 + p.data._m.conf * 12,
+        z: 3,
+      },
+    ],
   }
-  return ticks
 })
-
-const midY = (H - PAD.top - PAD.bottom) / 2 + PAD.top
 </script>
 
 <template>
   <p v-if="!sorted.length" class="traj-empty">此時間範圍內無提及紀錄</p>
-  <div v-else class="traj-wrap">
-  <svg :viewBox="`0 0 ${W} ${H}`" class="traj">
-    <!-- 方向區帶 -->
-    <line :x1="PAD.left" :x2="W - PAD.right" :y1="PAD.top" :y2="PAD.top" class="grid" />
-    <line :x1="PAD.left" :x2="W - PAD.right" :y1="midY" :y2="midY" class="grid mid" />
-    <line :x1="PAD.left" :x2="W - PAD.right" :y1="baseline" :y2="baseline" class="grid" />
-    <text :x="4" :y="PAD.top + 4" class="axis-label" fill="#68d391">看多</text>
-    <text :x="4" :y="midY + 4" class="axis-label" fill="#90cdf4">中性</text>
-    <text :x="4" :y="baseline + 4" class="axis-label" fill="#fc8181">看空</text>
-
-    <!-- 日期刻度：淡色直格線 + 真實日期 -->
-    <g v-for="(tk, i) in dateTicks" :key="`t${i}`">
-      <line :x1="tk.x" :x2="tk.x" :y1="PAD.top" :y2="baseline" class="date-grid" />
-      <text :x="tk.x" :y="baseline + 32" class="date-label">{{ tk.label }}</text>
-    </g>
-
-    <!-- 連線 -->
-    <path :d="linePath" class="traj-line" />
-
-    <!-- 點 -->
-    <g v-for="(p, i) in points" :key="i">
-      <circle v-if="p.hasPos" :cx="p.cx" :cy="p.cy" :r="p.r + 4" fill="none" stroke="#f6ad55" stroke-width="2" />
-      <circle :cx="p.cx" :cy="p.cy" :r="p.r" :fill="p.color"
-        :class="{ active: hovered === i }"
-        @mouseenter="hovered = i" @mouseleave="hovered = null" />
-      <!-- 透明大圈擴大 hover 命中範圍 -->
-      <circle :cx="p.cx" :cy="p.cy" r="12" fill="transparent"
-        @mouseenter="hovered = i" @mouseleave="hovered = null" />
-      <text v-if="showEpLabels" :x="p.cx" :y="baseline + 15" class="ep-label">EP{{ p.ep }}</text>
-    </g>
-  </svg>
-
-  <!-- hover 提示框 -->
-  <MentionTip v-if="hovered !== null"
-    :ep="points[hovered].ep" :dir="points[hovered].dir" :color="points[hovered].color"
-    :date="points[hovered].date" :days-ago="points[hovered].daysAgo"
-    :conf="points[hovered].conf" :has-pos="points[hovered].hasPos" :quote="points[hovered].quote"
-    :left-pct="points[hovered].cx / W * 100" :top-pct="points[hovered].cy / H * 100"
-    :place-below="points[hovered].cy < H / 2" />
-  </div>
+  <VChart v-else class="traj" :option="option" autoresize />
 </template>
 
 <style scoped>
-.traj-wrap { position: relative; }
-.traj { width: 100%; height: auto; background: #161b27; border-radius: 8px; display: block; }
-.traj-empty { color: #718096; font-size: 0.85rem; padding: 1rem 0; }
-.grid { stroke: #2d3748; stroke-width: 1; }
-.grid.mid { stroke-dasharray: 3 3; }
-.date-grid { stroke: #232b3a; stroke-width: 1; }
-.axis-label { font-size: 10px; font-weight: 600; }
-.traj-line { fill: none; stroke: #4a5568; stroke-width: 1.5; }
-.ep-label { font-size: 9px; fill: #718096; text-anchor: middle; }
-.date-label { font-size: 10px; fill: #a0aec0; text-anchor: middle; font-variant-numeric: tabular-nums; }
-circle { cursor: pointer; }
-circle.active { stroke: #fff; stroke-width: 1.5; }
+.traj {
+  width: 100%;
+  height: 200px;
+  background: #161b27;
+  border-radius: 8px;
+}
+.traj-empty {
+  color: #718096;
+  font-size: 0.85rem;
+  padding: 1rem 0;
+}
 </style>
