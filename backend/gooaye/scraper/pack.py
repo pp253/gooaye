@@ -23,7 +23,10 @@ import httpx
 
 MANIFEST_URL = "https://whatmkreallysaid.com/pack_manifest.json"
 PACK_URL = "https://whatmkreallysaid.com/transcripts.json.br"
-EPISODE_URL = "https://whatmkreallysaid.com/episode.html?file=EP{ep}"
+EPISODES_JSON_URL = "https://whatmkreallysaid.com/episodes.json"
+# 新格式：episode.html?file=EP{n}_{title}.md（從 episodes.json 取 filename）
+EPISODE_BASE_URL = "https://whatmkreallysaid.com/episode.html?file={filename}"
+EPISODE_URL_FALLBACK = "https://whatmkreallysaid.com/episode.html?file=EP{ep}"  # 若無 filename 時的 fallback
 RAW_DIR = Path(__file__).resolve().parents[2] / "data" / "raw"
 
 _USER_AGENT = "gooaye-tracker/0.2 (personal research)"
@@ -61,13 +64,27 @@ def get_manifest() -> dict:
     return resp.json()
 
 
-def _to_episode(entry: dict) -> Episode:
+def get_episode_filenames() -> dict[int, str]:
+    """從 episodes.json 取得 ep_no → filename 對照表（用於組正確的 source_url）。"""
+    resp = httpx.get(
+        EPISODES_JSON_URL, follow_redirects=True, timeout=30,
+        headers={"User-Agent": _USER_AGENT},
+    )
+    resp.raise_for_status()
+    return {int(e["number"]): e["filename"] for e in resp.json()}
+
+
+def _to_episode(entry: dict, filename: str | None = None) -> Episode:
     ep_no = int(entry["n"])
     transcript = entry.get("tx", "") or ""
+    if filename:
+        source_url = EPISODE_BASE_URL.format(filename=filename)
+    else:
+        source_url = EPISODE_URL_FALLBACK.format(ep=ep_no)
     return Episode(
         ep_no=ep_no,
         title=entry.get("t", ""),
-        source_url=EPISODE_URL.format(ep=ep_no),
+        source_url=source_url,
         published_at=entry.get("d", ""),
         site_desc=entry.get("desc", ""),
         transcript=transcript,
@@ -97,6 +114,12 @@ def fetch_range(
     """從 pack 取出 [start, end]（含端點）的集數並存檔。"""
     pack = fetch_pack()
     by_no = {int(e["n"]): e for e in pack}
+    # 取 filename 對照表，讓 source_url 用正確格式（含標題）
+    try:
+        filenames = get_episode_filenames()
+    except Exception as exc:
+        print(f"  ⚠ 無法取得 episodes.json（{exc}），source_url 將用 fallback 格式")
+        filenames = {}
     episodes: list[Episode] = []
     for ep_no in range(start, end + 1):
         entry = by_no.get(ep_no)
@@ -106,7 +129,7 @@ def fetch_range(
         if not (entry.get("tx") or "").strip():
             print(f"  EP{ep_no}: pack 中無逐字稿內容，略過")
             continue
-        episode = _to_episode(entry)
+        episode = _to_episode(entry, filename=filenames.get(ep_no))
         save_episode(episode, raw_dir=raw_dir)
         episodes.append(episode)
         print(
