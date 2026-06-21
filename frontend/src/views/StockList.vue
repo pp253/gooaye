@@ -2,13 +2,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { loadStockSignals, loadSparklines, type StockRow } from '@/lib/useData'
-import { FRESHNESS_META, relativeTime } from '@/lib/signal'
+import { HALF_LIFE_DAYS } from '@/lib/signal'
 import { TRADEABLE_TYPES } from '@/lib/types'
 import { pct, retColor } from '@/lib/format'
 import { useQuerySync } from '@/lib/useQuerySync'
 import Sparkline from '@/components/Sparkline.vue'
+import FreshnessLabel from '@/components/FreshnessLabel.vue'
 import InfoTip from '@/components/InfoTip.vue'
-import { HALF_LIFE_DAYS } from '@/lib/signal'
 
 const rows = ref<StockRow[]>([])
 const referenceDate = ref('')
@@ -18,7 +18,7 @@ const assetView = ref<'tradeable' | 'theme' | 'all'>('tradeable')
 const market = ref<'ALL' | 'TW' | 'US'>('ALL')
 const onlyPosition = ref(false)
 const hideStale = ref(true)
-const sortBy = ref<'score' | 'recent' | 'count'>('score')
+const sortBy = ref<'score' | 'recent' | 'count' | 'first_mention'>('score')
 
 // 篩選狀態同步到網址（重新整理／返回時保留）
 useQuerySync({
@@ -46,6 +46,7 @@ const filtered = computed(() => {
   list.sort((a, b) => {
     if (sortBy.value === 'score') return b.signal.score - a.signal.score
     if (sortBy.value === 'recent') return a.signal.latest_days_ago - b.signal.latest_days_ago
+    if (sortBy.value === 'first_mention') return a.signal.first_mention_days_ago - b.signal.first_mention_days_ago
     return b.signal.mention_count - a.signal.mention_count
   })
   return list
@@ -91,9 +92,9 @@ onMounted(async () => {
       </div>
       <div class="ctrl-group sort">
         <span class="sort-label">排序</span>
-        <button v-for="s in (['score', 'recent', 'count'] as const)" :key="s"
+        <button v-for="s in (['score', 'recent', 'count', 'first_mention'] as const)" :key="s"
           :class="['chip', { active: sortBy === s }]" @click="sortBy = s">
-          {{ s === 'score' ? '訊號分數' : s === 'recent' ? '最近提及' : '提及次數' }}
+          {{ s === 'score' ? '訊號分數' : s === 'recent' ? '最近提及' : s === 'first_mention' ? '首次提及' : '提及次數' }}
         </button>
       </div>
     </div>
@@ -127,6 +128,7 @@ onMounted(async () => {
           <th>首次看多至今</th>
           <th>連續看多</th>
           <th>次數</th>
+          <th>首次提及</th>
         </tr>
       </thead>
       <tbody>
@@ -163,11 +165,7 @@ onMounted(async () => {
           <td class="num price">{{ r.performance?.current_price ?? '—' }}</td>
           <td class="spark-cell"><Sparkline :values="r.recent" /></td>
           <td>
-            <span class="fresh" :style="{ color: FRESHNESS_META[r.signal.latest_freshness].color }">
-              {{ FRESHNESS_META[r.signal.latest_freshness].dot }}
-              {{ relativeTime(r.signal.latest_days_ago) }}
-            </span>
-            <span class="ep-ref">EP{{ r.signal.latest_ep }}</span>
+            <FreshnessLabel :days-ago="r.signal.latest_days_ago" />
           </td>
           <td class="num" :style="{ color: retColor(r.performance?.ret_since_first_bull) }">
             {{ pct(r.performance?.ret_since_first_bull) }}
@@ -177,6 +175,9 @@ onMounted(async () => {
             <span v-else class="muted">{{ r.signal.bull_streak }}</span>
           </td>
           <td class="num muted">{{ r.signal.mention_count }}</td>
+          <td class="muted first-date">
+            <FreshnessLabel :days-ago="r.signal.first_mention_days_ago" />
+          </td>
         </tr>
       </tbody>
     </table>

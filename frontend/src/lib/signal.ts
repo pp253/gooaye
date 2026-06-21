@@ -65,6 +65,10 @@ export interface StockSignal {
   has_position_ever: boolean
   /** 最近連續看多次數 */
   bull_streak: number
+  /** 首次提及日期（YYYY-MM-DD） */
+  first_mention_date: string
+  /** 首次提及距基準日天數 */
+  first_mention_days_ago: number
 }
 
 /**
@@ -94,6 +98,9 @@ export function computeSignal(
     else break
   }
 
+  const first = sorted[sorted.length - 1]
+  const firstDaysAgo = daysBetween(first.published_at, referenceDate)
+
   return {
     score,
     latest_direction: latest.direction,
@@ -103,5 +110,7 @@ export function computeSignal(
     mention_count: sorted.length,
     has_position_ever: sorted.some((m) => m.has_position),
     bull_streak: bullStreak,
+    first_mention_date: first.published_at,
+    first_mention_days_ago: firstDaysAgo,
   }
 }

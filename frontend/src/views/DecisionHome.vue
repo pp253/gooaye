@@ -2,9 +2,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { loadStockSignals, type StockRow } from '@/lib/useData'
-import { FRESHNESS_META, relativeTime } from '@/lib/signal'
 import { TRADEABLE_TYPES } from '@/lib/types'
 import { pct, retColor } from '@/lib/format'
+import { useQuerySync } from '@/lib/useQuerySync'
+import FreshnessLabel from '@/components/FreshnessLabel.vue'
 
 const rows = ref<StockRow[]>([])
 const referenceDate = ref('')
@@ -16,11 +17,25 @@ const dirColor: Record<string, string> = {
   中性: '#90cdf4',
 }
 
-// 決策只看「可直接買賣」的標的（個股 / ETF），題材、指數、商品不列入
-const tradeable = computed(() => rows.value.filter((r) => TRADEABLE_TYPES.includes(r.asset_type)))
+const assetView = ref<'tradeable' | 'theme' | 'all'>('tradeable')
+const market = ref<'ALL' | 'TW' | 'US'>('ALL')
+
+useQuerySync({
+  asset: { ref: assetView, default: 'tradeable' },
+  market: { ref: market, default: 'ALL' },
+})
+
+// 套用資產類型 + 市場篩選後的基底
+const filtered = computed(() => {
+  let list = rows.value.slice()
+  if (assetView.value === 'tradeable') list = list.filter((r) => TRADEABLE_TYPES.includes(r.asset_type))
+  else if (assetView.value === 'theme') list = list.filter((r) => !TRADEABLE_TYPES.includes(r.asset_type))
+  if (market.value !== 'ALL') list = list.filter((r) => r.market === market.value)
+  return list
+})
 
 // 只看「近期（非過期）」的訊號做決策
-const fresh = computed(() => tradeable.value.filter((r) => r.signal.latest_freshness !== 'stale'))
+const fresh = computed(() => filtered.value.filter((r) => r.signal.latest_freshness !== 'stale'))
 
 // 1. 他有部位（最強訊號）
 const hasPosition = computed(() =>
@@ -38,9 +53,15 @@ const topBull = computed(() =>
 )
 // 3. 最新提及（近一個月內被談到的標的）
 const recent = computed(() =>
-  tradeable.value
+  filtered.value
     .filter((r) => r.signal.latest_days_ago <= 30)
     .sort((a, b) => a.signal.latest_days_ago - b.signal.latest_days_ago),
+)
+// 4. 近一個月首次提及（資料集有紀錄以來第一次被談到）
+const newlyMentioned = computed(() =>
+  filtered.value
+    .filter((r) => r.signal.first_mention_days_ago <= 30)
+    .sort((a, b) => a.signal.first_mention_days_ago - b.signal.first_mention_days_ago),
 )
 
 onMounted(async () => {
@@ -60,6 +81,21 @@ onMounted(async () => {
     <p v-if="loading" class="loading">載入中 …</p>
 
     <template v-else>
+      <div class="controls">
+        <div class="ctrl-group">
+          <button v-for="a in (['tradeable', 'theme', 'all'] as const)" :key="a"
+            :class="['chip', { active: assetView === a }]" @click="assetView = a">
+            {{ a === 'tradeable' ? '可交易（個股/ETF）' : a === 'theme' ? '題材/指數' : '全部' }}
+          </button>
+        </div>
+        <div class="ctrl-group">
+          <button v-for="f in (['ALL', 'TW', 'US'] as const)" :key="f"
+            :class="['chip', { active: market === f }]" @click="market = f">
+            {{ f === 'ALL' ? '全部市場' : f }}
+          </button>
+        </div>
+      </div>
+
       <section class="board">
         <h2 class="board-title">🔴 謝孟恭有部位</h2>
         <p class="board-desc">他自己的錢也在裡面——最值得參考的訊號</p>
@@ -73,8 +109,8 @@ onMounted(async () => {
               <span class="sc-dir" :style="{ color: dirColor[r.signal.latest_direction] }">{{ r.signal.latest_direction }}</span>
               <span class="sc-score">分數 {{ r.signal.score.toFixed(2) }}</span>
             </div>
-            <div class="sc-fresh" :style="{ color: FRESHNESS_META[r.signal.latest_freshness].color }">
-              {{ FRESHNESS_META[r.signal.latest_freshness].dot }} {{ relativeTime(r.signal.latest_days_ago) }} · EP{{ r.signal.latest_ep }}
+            <div class="sc-fresh">
+              <FreshnessLabel :days-ago="r.signal.latest_days_ago" />
             </div>
             <div v-if="r.performance?.current_price" class="sc-price">
               {{ r.performance.current_price }}
@@ -101,8 +137,8 @@ onMounted(async () => {
             <div class="sc-mid">
               <span class="sc-score-big" :style="{ color: '#68d391' }">+{{ r.signal.score.toFixed(2) }}</span>
             </div>
-            <div class="sc-fresh" :style="{ color: FRESHNESS_META[r.signal.latest_freshness].color }">
-              {{ FRESHNESS_META[r.signal.latest_freshness].dot }} {{ relativeTime(r.signal.latest_days_ago) }} · EP{{ r.signal.latest_ep }}
+            <div class="sc-fresh">
+              <FreshnessLabel :days-ago="r.signal.latest_days_ago" />
             </div>
             <div v-if="r.performance?.current_price" class="sc-price">
               {{ r.performance.current_price }}
@@ -117,7 +153,29 @@ onMounted(async () => {
       </section>
 
       <section class="board">
-        <h2 class="board-title">🆕 最新提及</h2>
+        <h2 class="board-title">🆕 近期首次提及</h2>
+        <p class="board-desc">近一個月內第一次被謝孟恭談到的標的（{{ newlyMentioned.length }} 檔）——新進場的標的，短期注意流動性相對低</p>
+        <div class="card-row">
+          <RouterLink v-for="r in newlyMentioned" :key="r.id" :to="`/stocks/${r.id}`" class="sig-card new-card">
+            <div class="sc-top">
+              <span class="sc-ticker">{{ r.ticker }}</span>
+              <span class="sc-name">{{ r.name_zh }}</span>
+            </div>
+            <div class="sc-mid">
+              <span class="sc-dir" :style="{ color: dirColor[r.signal.latest_direction] }">{{ r.signal.latest_direction }}</span>
+            </div>
+            <div class="sc-fresh" style="color: #9ae6b4">
+              🆕 首次：{{ r.signal.first_mention_date }}
+            </div>
+            <div class="sc-fresh">
+              <FreshnessLabel :days-ago="r.signal.latest_days_ago" />
+            </div>
+          </RouterLink>
+          <p v-if="newlyMentioned.length === 0" class="empty">近一個月無新首次提及的標的</p>
+        </div>
+      </section>
+
+      <section class="board">        <h2 class="board-title">🆕 最新提及</h2>
         <p class="board-desc">近一個月內被談到的標的（{{ recent.length }} 檔）</p>
         <div class="card-row">
           <RouterLink v-for="r in recent" :key="r.id" :to="`/stocks/${r.id}`" class="sig-card">
@@ -128,8 +186,8 @@ onMounted(async () => {
             <div class="sc-mid">
               <span class="sc-dir" :style="{ color: dirColor[r.signal.latest_direction] }">{{ r.signal.latest_direction }}</span>
             </div>
-            <div class="sc-fresh" :style="{ color: FRESHNESS_META[r.signal.latest_freshness].color }">
-              {{ FRESHNESS_META[r.signal.latest_freshness].dot }} {{ relativeTime(r.signal.latest_days_ago) }} · EP{{ r.signal.latest_ep }}
+            <div class="sc-fresh">
+              <FreshnessLabel :days-ago="r.signal.latest_days_ago" />
             </div>
             <div v-if="r.performance?.current_price" class="sc-price">
               {{ r.performance.current_price }}
@@ -152,6 +210,17 @@ onMounted(async () => {
 .loading { color: #718096; }
 .empty { color: #718096; font-size: 0.85rem; }
 
+.controls { display: flex; flex-wrap: wrap; gap: 1.25rem; margin-bottom: 1.75rem; }
+.ctrl-group { display: flex; align-items: center; gap: 0.4rem; }
+
+.chip {
+  background: #2d3748; color: #a0aec0; border: none; border-radius: 6px;
+  padding: 0.3rem 0.7rem; cursor: pointer; font-size: 0.8rem;
+  transition: background 0.15s, color 0.15s;
+}
+.chip:hover { background: #374151; }
+.chip.active { background: #63b3ed; color: #1a1f2e; font-weight: 600; }
+
 .board { margin-bottom: 2.25rem; }
 .board-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 0.2rem; }
 .board-desc { font-size: 0.8rem; color: #718096; margin-bottom: 0.9rem; }
@@ -165,6 +234,8 @@ onMounted(async () => {
   transition: border-color 0.15s, background 0.15s;
 }
 .sig-card:hover { border-color: #63b3ed; background: #1e2535; }
+.new-card { border-color: #2d4a3e; }
+.new-card:hover { border-color: #9ae6b4; }
 
 .sc-top { display: flex; align-items: baseline; gap: 0.4rem; }
 .sc-ticker { font-family: monospace; font-weight: 700; color: #90cdf4; font-size: 0.95rem; }
