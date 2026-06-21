@@ -105,8 +105,8 @@ def sync_prices(
     # 全體最早提及日：給未被提及的標的（如基準 SPY/0050）當抓取起點
     global_min = min(first_date.values()) if first_date else None
 
-    # 確保至少有約 14 個月歷史，讓前端「1年／半年」範圍有資料
-    lookback = (dt.date.today() - dt.timedelta(days=420)).isoformat()
+    # 確保至少有 5 年歷史
+    lookback = (dt.date.today() - dt.timedelta(days=365 * 5)).isoformat()
 
     total_rows = 0
     done = 0
