@@ -16,10 +16,10 @@
 
 ---
 
-## 1. 現況（截至 2026-06-18）
+## 1. 現況（截至 2026-06-21）
 
-- **資料**：已抓並處理 **EP622–671（50 集，2026 年 1–6 月）**，最新一集 EP671（2026-06-17）。
-- **股價**：137 檔個股/ETF + 基準，約 14 個月日收盤，共 ~32,000 筆。
+- **資料**：已抓並處理 **EP472–671（200 集）**，最新一集 EP671（2026-06-17）。
+- **股價**：225 檔個股/ETF + 基準，**5 年**日收盤，共 ~268,000 筆。
 - **回測**：三種規則 + 命中率已跑通，結果存在 `backtest_runs`。
 - **前端**：決策面板 / 個股追蹤 / 個股詳情 / 回測 / 集數列表 全部可用，已部署為 Vite dev（`npm run dev`，port 5173）。
 - 全部資料在 **Supabase cloud**（見 §4），前端用 anon key 直接查。
@@ -60,7 +60,7 @@ gooaye/
 │   │       ├── performance.py   ← 算 stock_performance（現價、首次/最近看多至今報酬）
 │   │       └── backtest.py      ← 三策略 + 命中率 + 每筆交易明細 → backtest_runs
 │   ├── scripts/                 ← 全部用 `uv run python scripts/xxx.py` 執行
-│   │   ├── scrape.py <start> <end>
+│   │   ├── scrape.py <start> <end>  # 或 --latest 查詢 pack 最新集數
 │   │   ├── extract.py <start> <end>
 │   │   ├── load_db.py <start> <end>
 │   │   ├── fetch_prices.py [--missing]
@@ -102,6 +102,7 @@ gooaye/
 ```bash
 cd backend
 uv sync                                   # 還原環境（首次/換機）
+uv run python scripts/scrape.py --latest  # 查詢 pack 最新集數（不爬）
 uv run python scripts/scrape.py 622 671   # 1. 從 pack 抓逐字稿 → data/raw/
 uv run python scripts/extract.py 622 671  # 2. OpenAI 抽取 → data/extracted/（有 API 成本）
 uv run python scripts/load_db.py 622 671  # 3. 正規化 + 寫入 Supabase
@@ -110,6 +111,7 @@ uv run python scripts/run_analytics.py    # 5. 算 stock_performance + 跑回測
 ```
 
 - 加新套件：`uv add <pkg>`。
+- **查最新集數**：`scrape.py --latest` 從 pack 取得最新 EP 編號（不會下載任何東西）。
 - **抓更多集數**：把範圍改成 `1 671` 即可（pack 有全部 671 集）。成本主要在 step 2（OpenAI）。
 - **每次出新集數的增量更新**：`scrape N N` → `extract N N` → `load_db N N` →（重跑）`fetch_prices` + `run_analytics`。
 - 可考慮包成一支 `update_all.py`（使用者問過，尚未做）。
@@ -145,7 +147,7 @@ uv run python scripts/run_analytics.py    # 5. 算 stock_performance + 跑回測
 | 抽取模型 | **OpenAI `gpt-5.4-mini`**（Structured Outputs, strict json_schema） | 使用者的 OpenAI key 該 project **只有 gpt-5.4 系列權限**（沒有 gpt-5/gpt-5-mini）。改模型前先 `client.models.list()` 確認 |
 | 個股正規化 | canonical 對照表 + 規則：真實代號→個股；中文 slug→題材；全大寫2-5字母→個股；黑名單(人名/產品/術語)→題材 | 把「被動元件」「OpenAI」「Michael Burry」這類非個股濾掉，外國股(村田 6981.T、三星 005930.KS)補代號 |
 | 股價 | yfinance；TW 加 `.TW`、US 原樣、OTHER 已含後綴(.T/.KS) | 單一來源涵蓋台/美/日/韓 |
-| 股價抓取起點 | min(首次提及−5天, 今天−420天) | 讓「1年/半年」時間範圍有資料 |
+| 股價抓取起點 | min(首次提及−5天, 今天−1825天) | 確保至少 5 年歷史，讓回測有足夠樣本 |
 | 訊號分數 | Σ 方向權重 × 信心 × e^(−Δ天/半衰期)，半衰期 30 天 | 近期觀點自動浮上來 |
 | 新鮮度 | fresh ≤14天 / aging ≤60天 / stale >60天 | 決策面板與列表預設隱藏 stale |
 | 衰減基準日 | 資料集最新一集（前端 referenceDate）；UI 顯示用 | |
@@ -209,7 +211,7 @@ npm run build                                # 型別檢查 + 打包（改完務
 ## 9. 可能的下一步（未做、依使用者意願）
 
 - `update_all.py` 一鍵增量更新（scrape→extract→load→prices→analytics）。
-- 擴充集數到全部 671 集（成本：約 50 集的 13 倍 OpenAI 用量）。
+- 擴充集數到全部 671 集（目前已有 EP472–671，更早的集數尚未處理，成本高）。
 - 自動排程（新集出刊後自動抓取/抽取）。
 - 正規化對照表擴充長尾外國股（茂聯、Nexperia 等目前歸題材）。
 - 回測加入手續費/滑價、不同持有天數比較、分年份績效。
