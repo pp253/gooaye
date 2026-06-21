@@ -78,11 +78,12 @@ gooaye/
 │       │   ├── format.ts        ← pct/rate/retColor
 │       │   └── useQuerySync.ts  ← 篩選狀態 ↔ 網址 query 雙向同步
 │       ├── components/
-│       │   ├── PriceChart.vue       ← 股價走勢 + 提及點標記 + hover 提示
-│       │   ├── TrajectoryChart.vue  ← 觀點演變（方向×信心 時間軸）+ hover 提示
-│       │   ├── MentionTip.vue       ← 兩圖共用的 hover 浮框
-│       │   ├── Sparkline.vue        ← 個股列表的近30天迷你圖
-│       │   └── EquityChart.vue      ← 回測資金曲線
+│       │   ├── PriceChart.vue       ← 股價走勢（TradingView Lightweight Charts）+ 提及點 markers + crosshair hover
+│       │   ├── TrajectoryChart.vue  ← 觀點演變（方向×信心 時間軸，ECharts scatter）+ tooltip
+│       │   ├── MentionTip.vue       ← PriceChart 的 hover 浮框（crosshair 觸發）
+│       │   ├── Sparkline.vue        ← 個股列表的近30天迷你圖（保留手寫 SVG，最輕量）
+│       │   ├── InfoTip.vue          ← 可重用 ⓘ 點擊式說明 popover（如「訊號分數」定義）
+│       │   └── EquityChart.vue      ← 回測資金曲線（ECharts line + 0% markLine）
 │       └── views/
 │           ├── DecisionHome.vue ← 「/」決策面板：他有部位/高分看多/最新提及
 │           ├── StockList.vue    ← 個股追蹤表（篩選、排序、現價、迷你圖、表現）
@@ -90,8 +91,14 @@ gooaye/
 │           ├── BacktestView.vue ← 回測：三策略表、資金曲線、區間篩選、最佳/最差、命中率
 │           ├── EpisodeList.vue / EpisodeDetail.vue
 │           └── router/index.ts
-└── supabase/migrations/         ← 20260617000001_init / _002_asset_type / 20260618000001_analytics
+└── supabase/migrations/         ← _init / _asset_type / _analytics / _auth_gate / _bull_stats / 20260621000003_advisor_security_definer
 ```
+
+### 圖表套件（2026-06-21 起，不再手寫 SVG）
+- **PriceChart** → `lightweight-charts`（TradingView v5）：line series + `createSeriesMarkers` 標提及點（方向配色、有部位用方形）、`subscribeCrosshairMove` 接 `MentionTip` 浮框。**用 `fitContent()`，不要用 `setVisibleRange`**（to 超過最後交易日會拋 "Value is null" 導致空白圖）。
+- **TrajectoryChart / EquityChart** → `echarts` + `vue-echarts`。
+- **Sparkline** → 保留手寫 SVG（列表上百個實例，套件 canvas 太重）。
+- ⚠️ PriceChart 載入股價要**分頁**抓（PostgREST 上限 1000 列；5 年 >1000 筆，見 §6.6），否則只拿到最舊 1000 筆、切到近期範圍會「無資料」。
 
 ---
 
@@ -222,7 +229,8 @@ npm run build                                # 型別檢查 + 打包（改完務
 ## 11. 登入 / 權限（Supabase Auth）
 
 - **登入方式**：Google OAuth + Email magic link（無密碼）。Auth 由 Supabase 託管。
-- **權限**：email **白名單**。`allowed_emails` 表存允許的 email；`is_allowed()`（SECURITY DEFINER）比對登入者 JWT 的 email。
+- **權限**：email **白名單**。`allowed_emails` 表存允許的 email；`is_allowed()`（**SECURITY INVOKER**，自 migration `20260621000003`）比對登入者 JWT 的 email。搭配 `allowed_emails` 的「登入者只能讀自己那列」policy（`self read allowed_emails`）才讀得到白名單。
+  - 註：原為 SECURITY DEFINER，會觸發 Security Advisor 0028/0029（anon/authenticated 可執行 DEFINER 函式）。改 INVOKER + self-read policy 後兩警告消失、功能不變。
 - **資料保護**：六張資料表 RLS 改成 `using (is_allowed())` — 未登入/非白名單 **查不到任何資料**（anon 直接查 REST 也是空）。migration：`20260621000001_auth_gate.sql`。
 - **加人**：往 `allowed_emails` insert 一列 email（小寫）即可，不需改 code。
 - **前端**：`lib/auth.ts`（session/allowed 狀態、signInWithGoogle/Email、signOut）；`App.vue` 是登入閘門；`LoginView.vue` 登入頁；登入後呼叫 RPC `is_allowed()` 決定顯示 app 或「無權限」。
@@ -232,6 +240,7 @@ npm run build                                # 型別檢查 + 打包（改完務
   - ⚠️ `config push` 以 config.toml 為準覆蓋遠端；注意 `[storage.vector] enabled` 要維持 `false`（免費方案不支援，否則 push 會 402）。
 - **部署上線**：把正式網址加進 config.toml 的 `site_url` / `additional_redirect_urls` 與 Google client 的 redirect/origins，再 `config push`。
 - 金鑰：`.env` 的 `SUPABASE_AUTH_GOOGLE_CLIENT_ID` / `SUPABASE_AUTH_GOOGLE_SECRET`（gitignored）。
+- **Security Advisor 剩餘 2 個 warning（刻意保留，不適用本專案）**：`auth_leaked_password_protection`、`auth_insufficient_mfa_options`。兩者都是針對「密碼登入」的建議，本專案是**無密碼**（Google OAuth + Email magic link），故視為不適用、不處理。查警告：`npx supabase db advisors --linked --type security --level warn`。
 
 ---
 
