@@ -11,6 +11,7 @@ __pycache__/
 # Data (raw transcripts & extracted json are reproducible)
 backend/data/raw/
 backend/data/extracted/
+backend/data/model_compare/
 
 # Node / Vue
 frontend/node_modules/
