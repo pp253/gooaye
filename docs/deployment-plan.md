@@ -1,6 +1,6 @@
 # 部署計畫 — GitHub Pages + Cloudflare 網域 + Actions 排程
 
-> 目標：把 frontend build 部署到 GitHub Pages，自訂網域 `stock.keep.party`（DNS 走 Cloudflare），
+> 目標：把 frontend build 部署到 GitHub Pages，自訂網域 `stocks.keep.party`（DNS 走 Cloudflare），
 > 在 pp253 個人 GitHub 建立 public repo `gooaye`，並用 GitHub Actions 做 podcast 定期增量抓取。
 > 建立日期：2026-06-24。
 
@@ -11,7 +11,7 @@
 | Repo | `pp253/gooaye`，**public**（免費方案 Pages + 自訂網域） |
 | 推送範圍 | 整個 monorepo（backend + frontend + supabase + scripts） |
 | Actions 資料管線 | **建置並啟用排程**（每日 cron + 手動觸發） |
-| 自訂網域 | `stock.keep.party`，DNS 由 Cloudflare 管理，先 DNS-only（灰雲） |
+| 自訂網域 | `stocks.keep.party`，DNS 由 Cloudflare 管理，先 DNS-only（灰雲） |
 
 ## 既有設定盤點
 
@@ -32,7 +32,7 @@
 - 推 `main`。
 
 ### C. SPA 調整
-- 新增 `frontend/public/CNAME`，內容 `stock.keep.party`（隨 build 進 dist，維持自訂網域）。
+- 新增 `frontend/public/CNAME`，內容 `stocks.keep.party`（隨 build 進 dist，維持自訂網域）。
 - build 後 `cp dist/index.html dist/404.html`（在 deploy workflow 內做），解決 history-mode 深層連結 404。
 - `base` 維持 `/`。
 
@@ -60,14 +60,14 @@
 - 新增 CNAME：`stock` → `pp253.github.io`，**DNS-only（灰雲）**，讓 GitHub 簽 HTTPS 憑證。
 
 ### G. 自訂網域 + HTTPS
-- repo Settings → Pages 設 custom domain `stock.keep.party`。
+- repo Settings → Pages 設 custom domain `stocks.keep.party`。
 - DNS 生效、憑證簽好後開 Enforce HTTPS。
 
 ### H. Supabase Auth redirect
-- `supabase/config.toml` 的 `site_url` / `additional_redirect_urls` 加入 `https://stock.keep.party`。
+- `supabase/config.toml` 的 `site_url` / `additional_redirect_urls` 加入 `https://stocks.keep.party`。
 - `set -a && . ./.env && set +a && npx supabase config push`。
 - Google OAuth callback 不變（仍指向 supabase callback）。
 
 ## 驗證
-- Pages 部署成功、`https://stock.keep.party` 可開、登入流程正常。
+- Pages 部署成功、`https://stocks.keep.party` 可開、登入流程正常。
 - 手動觸發 `update-data.yml` 跑一次，確認增量管線可在 CI 完成。

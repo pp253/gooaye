@@ -273,12 +273,12 @@ npm run build                                # 型別檢查 + 打包（改完務
 - **GitHub repo**：`pp253/gooaye`（public）。整個 monorepo（backend+frontend+supabase）皆在版控；`.env`、`backend/data/raw|extracted/` 仍 gitignored。
 - **GitHub Pages**：build_type=workflow。`.github/workflows/deploy.yml` 在 push `frontend/**` 或手動觸發時 build 前端並部署。
   - 前端 build 注入 secrets `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`。
-  - `frontend/public/CNAME` = `stock.keep.party`（自訂網域）；`base` 維持 `/`。
+  - `frontend/public/CNAME` = `stocks.keep.party`（自訂網域）；`base` 維持 `/`。
   - SPA history-mode：workflow 內 `cp dist/index.html dist/404.html` 解決深層連結 404。
-  - 預設 URL：`https://pp253.github.io/gooaye/`；自訂網域：`https://stock.keep.party`。
+  - 預設 URL：`https://pp253.github.io/gooaye/`；自訂網域：`https://stocks.keep.party`。
 - **自訂網域 DNS**：Cloudflare zone `keep.party` → CNAME `stock` → `pp253.github.io`，**DNS only（灰雲）**讓 GitHub 簽憑證。設好後 repo Settings→Pages 設 custom domain + Enforce HTTPS。
 - **資料管線 CI**：`.github/workflows/update-data.yml`，cron `0 1 * * *`（台灣 09:00）+ 手動。用 `astral-sh/setup-uv` 跑 `backend/scripts/update_all.py`（偵測新集→增量 scrape/extract/load→fetch_prices→run_analytics）。
   - secrets：`OPENAI_API_KEY`、`OPENAI_EXTRACT_MODEL`、`SUPABASE_URL`、`SUPABASE_SERVICE_ROLE_KEY`、`SUPABASE_ANON_KEY`。
   - `update_all.py` 也可本機跑：`uv run python scripts/update_all.py`。extract 只在有新集時呼叫 OpenAI（才有成本）；fetch_prices 失敗不阻斷 analytics。
-- **Supabase Auth**：`config.toml` 的 `site_url`/`additional_redirect_urls` 已加 `https://stock.keep.party`（仍保留 localhost 供 dev）。
+- **Supabase Auth**：`config.toml` 的 `site_url`/`additional_redirect_urls` 已加 `https://stocks.keep.party`（仍保留 localhost 供 dev）。
   - ⚠️ **不要直接 `supabase config push`**：目前 `.env` 的 `SUPABASE_AUTH_GOOGLE_CLIENT_ID`/`SECRET` 是空的，push 會把遠端正常運作的 Google OAuth 憑證覆蓋成空、弄壞登入。要 push 前先向使用者索回 Google client id/secret 填入 `.env`；或改用 Supabase 後台 Authentication → URL Configuration 手動加 redirect URL（不碰 Google 設定）。
