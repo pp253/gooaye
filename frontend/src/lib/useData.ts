@@ -112,13 +112,14 @@ export async function loadStockSignals(): Promise<{
 }> {
   if (_cache && Date.now() - _cacheAt < CACHE_TTL_MS) return _cache
 
-  const [{ data: stockData }, { data: mentionData }, { data: perfData }] = await Promise.all([
+  const [{ data: stockData }, { data: mentionData }, { data: perfData }, { data: refData }] = await Promise.all([
     supabase.from('stocks').select('*'),
     supabase
       .from('mentions')
       .select('*, episodes(ep_no, title, published_at)')
       .not('stock_id', 'is', null),
     supabase.from('stock_performance').select('*'),
+    supabase.from('episodes').select('published_at').order('published_at', { ascending: false }).limit(1),
   ])
 
   const stocks = (stockData ?? []) as Stock[]
@@ -130,13 +131,10 @@ export async function loadStockSignals(): Promise<{
     episodes: { ep_no: number; title: string; published_at: string | null }
   })[]
 
-  // 衰減基準：資料集最新一集日期
+  // 衰減基準：直接從 episodes 表取最新一集日期（避免 mentions 被 PostgREST 截斷導致日期不準）
   const referenceDate =
-    rawMentions
-      .map((m) => m.episodes?.published_at)
-      .filter((d): d is string => !!d)
-      .sort()
-      .at(-1) ?? new Date().toISOString().slice(0, 10)
+    (refData?.[0]?.published_at as string | undefined)?.slice(0, 10) ??
+    new Date().toISOString().slice(0, 10)
 
   // 依 stock_id 分組，補上時間欄位
   const byStock = new Map<number, MentionWithTime[]>()
