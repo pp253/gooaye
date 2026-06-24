@@ -2,7 +2,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { pct, rate, retColor } from '@/lib/format'
-import EquityChart from '@/components/EquityChart.vue'
+import { loadStockSignals } from '@/lib/useData'
+import KpiCard from '@/components/KpiCard.vue'
+import MultiEquityChart from '@/components/MultiEquityChart.vue'
+import HitRateChart from '@/components/HitRateChart.vue'
 
 interface Scope {
   scope: string; n_trades: number; win_rate?: number; avg_return?: number
@@ -14,9 +17,12 @@ interface TradeRow {
   entry_date: string; exit_date: string; ret: number
   bm_ret: number | null; alpha: number | null
 }
+interface DailyBlock { dates: string[]; nav: number[]; bm_nav: number[] | null }
 interface Strategy {
   id: string; label: string; scopes: Scope[]
-  trades?: TradeRow[]; equity_curve?: { date: string; value: number }[]
+  trades?: TradeRow[]
+  /** 後端日頻 NAV（每市場一條），前端切片重設基準後算 Sharpe/MDD/CAGR */
+  daily?: Record<string, DailyBlock>
 }
 interface HitRow {
   horizon: number; n: number; pct_positive?: number
@@ -35,9 +41,23 @@ const dateMax = ref('')
 const filterFrom = ref('')
 const filterTo = ref('')
 
+// 全局篩選
+const selectedMarket = ref<'ALL' | 'TW' | 'US'>('ALL')
+
+// Hero 指標卡顯示的「主要策略」（預設指向推薦策略 S4，可切換）
+const featuredId = ref('S4')
+
+// Ticker 尋找 Stock ID 用於超連結
+const tickerToIdMap = ref<Record<string, number>>({})
+
+// 交易清單搜尋與篩選 (每個策略分開，載入後依實際策略 id 初始化)
+const searchQuery = ref<Record<string, string>>({})
+const tradeResultFilter = ref<Record<string, 'ALL' | 'WIN' | 'LOSS'>>({})
+
 const scopeLabel: Record<string, string> = { ALL: '全部', TW: '台股', US: '美股' }
 
 onMounted(async () => {
+  // 1. 載入回測主資料
   const { data } = await supabase
     .from('backtest_runs')
     .select('*')
@@ -50,6 +70,15 @@ onMounted(async () => {
     holdDays.value = r.hold_days ?? 60
     strategies.value = r.strategies ?? []
     hitRate.value = r.hit_rate ?? []
+
+    // 依實際策略 id 初始化各策略的搜尋/篩選狀態；確保 featured 指向存在的策略
+    for (const st of strategies.value) {
+      searchQuery.value[st.id] = ''
+      tradeResultFilter.value[st.id] = 'ALL'
+    }
+    if (!strategies.value.some(s => s.id === featuredId.value)) {
+      featuredId.value = strategies.value[0]?.id ?? 'S1'
+    }
 
     // 從 trades 推算可用日期範圍
     const allDates = (r.strategies ?? [])
@@ -65,6 +94,19 @@ onMounted(async () => {
       filterFrom.value = allDates.find((d: string) => d >= oneYearAgoStr) ?? allDates[0]
     }
   }
+
+  // 2. 載入個股對照表以建立連結
+  try {
+    const { stocks } = await loadStockSignals()
+    const map: Record<string, number> = {}
+    for (const s of stocks) {
+      map[s.ticker] = s.id
+    }
+    tickerToIdMap.value = map
+  } catch (e) {
+    console.error('Failed to load stock list mapping', e)
+  }
+
   loading.value = false
 })
 
@@ -87,28 +129,164 @@ function aggregate(trades: TradeRow[], scope: string) {
   }
 }
 
-function equityCurveFrom(trades: TradeRow[]) {
+// 從後端日頻 NAV 取出選定市場的序列，依篩選區間切片並重設基準為 1.0。
+// 回傳策略曲線與基準曲線（皆 { date, value }[]），供畫圖與指標計算共用。
+function slicedDaily(st: Strategy, scope: string) {
+  const d = st.daily?.[scope]
+  if (!d || d.dates.length < 2) return { curve: [], bmCurve: [] }
+  const idx: number[] = []
+  for (let i = 0; i < d.dates.length; i++) {
+    if (d.dates[i] >= filterFrom.value && d.dates[i] <= filterTo.value) idx.push(i)
+  }
+  if (idx.length < 2) return { curve: [], bmCurve: [] }
+  const base = d.nav[idx[0]] || 1
+  const bmBase = d.bm_nav ? d.bm_nav[idx[0]] || 1 : null
+  const curve = idx.map(i => ({ date: d.dates[i], value: +(d.nav[i] / base).toFixed(4) }))
+  const bmCurve =
+    d.bm_nav && bmBase
+      ? idx.map(i => ({ date: d.dates[i], value: +(d.bm_nav![i] / bmBase).toFixed(4) }))
+      : []
+  return { curve, bmCurve }
+}
+
+// 由日頻淨值序列計算最大回撤 (MDD)：含持倉期間浮動回撤，符合真實風險。
+function computeMdd(curve: { date: string; value: number }[]) {
+  let peak = -Infinity
+  let mdd = 0.0
+  for (const p of curve) {
+    if (p.value > peak) peak = p.value
+    const dd = p.value / peak - 1.0
+    if (dd < mdd) mdd = dd
+  }
+  return mdd
+}
+
+// 由淨值序列計算年化 Sharpe：以實際取樣頻率年化（自動適應日/週頻，含現金空檔，投組層級）。
+function computeSharpe(curve: { date: string; value: number }[]) {
+  if (curve.length < 3) return null
+  const r: number[] = []
+  for (let i = 1; i < curve.length; i++) {
+    if (curve[i - 1].value > 0) r.push(curve[i].value / curve[i - 1].value - 1)
+  }
+  if (r.length < 2) return null
+  const mean = r.reduce((a, b) => a + b, 0) / r.length
+  const variance = r.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (r.length - 1)
+  const sd = Math.sqrt(variance)
+  if (sd === 0) return null
+  const days = (Date.parse(curve[curve.length - 1].date) - Date.parse(curve[0].date)) / 86400000
+  const years = days / 365.25
+  const periodsPerYear = years > 0 ? r.length / years : 252
+  return (mean / sd) * Math.sqrt(periodsPerYear)
+}
+
+// 由日頻淨值序列計算年化複合報酬 (CAGR)。
+function computeCagr(curve: { date: string; value: number }[]) {
+  if (curve.length < 2) return null
+  const days = (Date.parse(curve[curve.length - 1].date) - Date.parse(curve[0].date)) / 86400000
+  if (days <= 0 || curve[0].value <= 0) return null
+  const years = days / 365.25
+  return Math.pow(curve[curve.length - 1].value / curve[0].value, 1 / years) - 1
+}
+
+// 計算連續勝敗
+function computeStreaks(trades: TradeRow[]) {
   const sorted = [...trades].sort((a, b) => a.exit_date.localeCompare(b.exit_date))
-  let sum = 0
-  return sorted.map((t, i) => {
-    sum += t.ret
-    return { date: t.exit_date, value: parseFloat((sum / (i + 1)).toFixed(4)) }
-  })
+  let winStreak = 0
+  let loseStreak = 0
+  let maxWin = 0
+  let maxLose = 0
+  for (const t of sorted) {
+    if (t.ret > 0) {
+      winStreak++
+      loseStreak = 0
+      if (winStreak > maxWin) maxWin = winStreak
+    } else if (t.ret < 0) {
+      loseStreak++
+      winStreak = 0
+      if (loseStreak > maxLose) maxLose = loseStreak
+    } else {
+      winStreak = 0
+      loseStreak = 0
+    }
+  }
+  return { maxWin, maxLose }
+}
+
+// 產出分年統計
+function getYearlyStats(trades: TradeRow[]) {
+  const byYear: Record<string, TradeRow[]> = {}
+  for (const t of trades) {
+    if (!t.exit_date) continue
+    const year = t.exit_date.split('-')[0]
+    if (!byYear[year]) byYear[year] = []
+    byYear[year].push(t)
+  }
+  return Object.keys(byYear).sort().map(year => ({
+    year,
+    ...aggregate(byYear[year], 'ALL')
+  }))
 }
 
 const filteredStrategies = computed(() =>
   strategies.value.map(st => {
+    // 依全局日期與市場篩選
     const trades = (st.trades ?? []).filter(
-      t => t.ep_date >= filterFrom.value && t.ep_date <= filterTo.value,
+      t => t.ep_date >= filterFrom.value && 
+           t.ep_date <= filterTo.value &&
+           (selectedMarket.value === 'ALL' || t.market === selectedMarket.value),
     )
+    const streaks = computeStreaks(trades)
+    const { curve, bmCurve } = slicedDaily(st, selectedMarket.value)
     return {
       ...st,
       _trades: trades,
       _scopes: ['ALL', 'TW', 'US'].map(sc => aggregate(trades, sc)),
-      _curve: equityCurveFrom(trades),
+      _curve: curve,
+      _bmCurve: bmCurve,
+      _mdd: computeMdd(curve),
+      _sharpe: computeSharpe(curve),
+      _cagr: computeCagr(curve),
+      _maxWin: streaks.maxWin,
+      _maxLose: streaks.maxLose,
+      _yearly: getYearlyStats(trades),
     }
   }),
 )
+
+// 主要策略數據（給 Hero 指標卡使用，可由使用者切換）
+const featured = computed(
+  () => filteredStrategies.value.find(s => s.id === featuredId.value) ?? filteredStrategies.value[0],
+)
+const featScopeAll = computed(() => featured.value?._scopes.find(sc => sc.scope === 'ALL'))
+const featScopeTw = computed(() => featured.value?._scopes.find(sc => sc.scope === 'TW'))
+const featScopeUs = computed(() => featured.value?._scopes.find(sc => sc.scope === 'US'))
+
+// 各策略配色（線色與 legend 圖示共用，確保一致）
+const STRAT_COLORS: Record<string, string> = {
+  S1: '#63b3ed', S2: '#f6ad55', S3: '#68d391',
+  S4: '#b794f4', S5: '#f687b3', S6: '#4fd1c5',
+}
+
+const chartSeries = computed(() => {
+  const colors = STRAT_COLORS
+  const seriesList = filteredStrategies.value.map(st => ({
+    id: st.id,
+    label: `${st.id} ${st.label}`,
+    color: colors[st.id] || '#cbd5e0',
+    data: st._curve,
+  }))
+  
+  const s1 = filteredStrategies.value[0]
+  if (s1 && s1._bmCurve?.length) {
+    seriesList.push({
+      id: 'BM',
+      label: `基準線 (${selectedMarket.value === 'TW' ? '0050' : selectedMarket.value === 'US' ? 'SPY' : '基準大盤組合'})`,
+      color: '#4a5568',
+      data: s1._bmCurve,
+    })
+  }
+  return seriesList
+})
 
 // 每個策略展開交易清單
 const expanded = ref<Record<string, boolean>>({})
@@ -119,12 +297,35 @@ function topBottomBy(trades: TradeRow[], key: 'ret' | 'alpha', n = 5) {
   const sorted = [...valid].sort((a, b) => (b[key] as number) - (a[key] as number))
   return { top: sorted.slice(0, n), bottom: sorted.slice(-n).reverse() }
 }
+
+function getDaysBetween(from: string, to: string): number {
+  if (!from || !to) return 0
+  const f = Date.parse(from)
+  const t = Date.parse(to)
+  return Math.round((t - f) / (1000 * 60 * 60 * 24))
+}
+
+function getFilteredTrades(stId: string, trades: TradeRow[]) {
+  const q = searchQuery.value[stId]?.trim().toLowerCase()
+  const resF = tradeResultFilter.value[stId]
+  
+  return trades.filter(t => {
+    if (q) {
+      const matchTicker = t.ticker.toLowerCase().includes(q)
+      const matchName = t.name_zh.toLowerCase().includes(q)
+      if (!matchTicker && !matchName) return false
+    }
+    if (resF === 'WIN' && t.ret <= 0) return false
+    if (resF === 'LOSS' && t.ret > 0) return false
+    return true
+  })
+}
 </script>
 
 <template>
   <div>
     <div class="page-header">
-      <h1 class="page-title">回測</h1>
+      <h1 class="page-title">回測表現儀表板</h1>
       <span v-if="referenceDate" class="ref-date">資料截至 {{ referenceDate }}</span>
     </div>
 
@@ -133,28 +334,211 @@ function topBottomBy(trades: TradeRow[], key: 'ret' | 'alpha', n = 5) {
       請以<strong>超額報酬（α）與勝率</strong>為主要判讀依據，過去績效不代表未來。非投資建議。
     </div>
 
-    <p v-if="loading" class="loading">載入中 …</p>
+    <p v-if="loading" class="loading">載入回測大數據中 …</p>
 
     <template v-else>
-      <!-- 回測區間篩選 -->
+      <!-- 全局回測控制篩選列 -->
       <section class="filter-bar">
-        <span class="filter-label">回測區間</span>
-        <input type="date" v-model="filterFrom" :min="dateMin" :max="filterTo" class="date-input" />
-        <span class="filter-sep">—</span>
-        <input type="date" v-model="filterTo" :min="filterFrom" :max="dateMax" class="date-input" />
-        <button class="reset-btn" @click="filterFrom = dateMin; filterTo = dateMax">全部</button>
+        <div class="filter-group">
+          <span class="filter-label">市場篩選</span>
+          <div class="filter-pills">
+            <button 
+              v-for="m in ['ALL', 'TW', 'US'] as const" 
+              :key="m" 
+              class="pill-btn" 
+              :class="{ active: selectedMarket === m }" 
+              @click="selectedMarket = m"
+            >
+              {{ m === 'ALL' ? '全部' : m === 'TW' ? '台股' : '美股' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <span class="filter-label">回測區間</span>
+          <div class="date-range-picker">
+            <input type="date" v-model="filterFrom" :min="dateMin" :max="filterTo" class="date-input" />
+            <span class="filter-sep">—</span>
+            <input type="date" v-model="filterTo" :min="filterFrom" :max="dateMax" class="date-input" />
+            <button class="reset-btn" @click="filterFrom = dateMin; filterTo = dateMax">全部區間</button>
+          </div>
+        </div>
+
         <span class="filter-count">
-          共 {{ filteredStrategies[0]?._trades?.length ?? 0 }} 筆交易（S1）
+          {{ featured?.id }} 目前範圍共 {{ featured?._trades?.length ?? 0 }} 筆交易
         </span>
       </section>
 
-      <!-- 三種策略 -->
-      <section v-for="st in filteredStrategies" :key="st.id" class="strat">
-        <h2 class="strat-title"><span class="sid">{{ st.id }}</span> {{ st.label }}</h2>
+      <!-- 主要策略選擇器（控制下方 KPI 指標卡） -->
+      <section class="featured-bar">
+        <span class="filter-label">主要策略</span>
+        <div class="filter-pills">
+          <button
+            v-for="st in filteredStrategies"
+            :key="'feat-' + st.id"
+            class="pill-btn"
+            :class="{ active: featuredId === st.id }"
+            :style="featuredId === st.id ? { background: STRAT_COLORS[st.id], color: '#0d1117' } : {}"
+            @click="featuredId = st.id"
+          >
+            {{ st.id }}
+          </button>
+        </div>
+        <span class="featured-label">{{ featured?.label }}</span>
+      </section>
 
-        <!-- 資金曲線 -->
-        <div class="curve-wrap">
-          <EquityChart :curve="st._curve" :width="700" :height="110" />
+      <!-- KPI Hero Section (Upgraded) -->
+      <section class="kpi-grid">
+        <KpiCard
+          :label="`${featured?.id} 跟單勝率`"
+          :value="rate(featScopeAll?.win_rate)"
+          :secondary="[
+            { label: '最長連勝', value: `${featured?._maxWin ?? 0}次`, color: '#68d391' },
+            { label: '最長連敗', value: `${featured?._maxLose ?? 0}次`, color: '#fc8181' }
+          ]"
+          hasTip
+        >
+          <template #tip>
+            <strong>跟單勝率</strong>：依該策略規則進出場，獲利為正的交易比例。下方顯示最長連續獲利與虧損的交易次數。
+          </template>
+        </KpiCard>
+
+        <KpiCard
+          :label="`${featured?.id} 平均超額 (α)`"
+          :value="pct(featScopeAll?.avg_alpha)"
+          :color="retColor(featScopeAll?.avg_alpha)"
+          :secondary="[
+            { label: '台股', value: pct(featScopeTw?.avg_alpha), color: retColor(featScopeTw?.avg_alpha) },
+            { label: '美股', value: pct(featScopeUs?.avg_alpha), color: retColor(featScopeUs?.avg_alpha) }
+          ]"
+          hasTip
+        >
+          <template #tip>
+            <strong>超額報酬 (α)</strong>：跟單報酬減去基準大盤報酬（台股基準：0050；美股基準：SPY）。正值代表打敗大盤。
+          </template>
+        </KpiCard>
+
+        <KpiCard
+          :label="`${featured?.id} 最大回撤 (MDD)`"
+          :value="pct(featured?._mdd)"
+          color="#fc8181"
+          subtitle="風控與策略壓力指標"
+          hasTip
+        >
+          <template #tip>
+            <strong>最大回撤 (MDD)</strong>：由日頻投組淨值計算（含持倉期間的浮動回撤），帳戶從最高峰回落至最低谷底的最大幅度。越接近 0 代表抗跌能力越強。
+          </template>
+        </KpiCard>
+
+        <KpiCard
+          :label="`${featured?.id} Sharpe 比率`"
+          :value="featured?._sharpe != null ? featured._sharpe.toFixed(2) : '—'"
+          :color="featured?._sharpe && featured._sharpe > 1 ? '#68d391' : '#f6ad55'"
+          subtitle="每承擔一單位風險的超額"
+          hasTip
+        >
+          <template #tip>
+            <strong>Sharpe Ratio (夏普值)</strong>：由投組淨值的週期報酬計算（依實際取樣頻率年化，含現金空檔）。通常大於 1 代表這套策略的「CP值」相當優異。
+          </template>
+        </KpiCard>
+
+        <KpiCard
+          :label="`${featured?.id} 年化報酬 (CAGR)`"
+          :value="pct(featured?._cagr)"
+          :color="retColor(featured?._cagr)"
+          subtitle="日頻淨值年化複合"
+          hasTip
+        >
+          <template #tip>
+            <strong>CAGR (年化複合報酬)</strong>：由日頻投組淨值序列，依篩選區間首尾與實際天數年化。已扣交易成本，含資金上限（最多同時持 10 檔）與現金空檔。
+          </template>
+        </KpiCard>
+      </section>
+
+      <!-- 三策略 NAV 淨值合圖 -->
+      <section class="strat chart-section">
+        <h2 class="chart-section-title">📈 策略 NAV 淨值走勢對比（複利）</h2>
+        <p class="strat-desc">初始資金 $1.00，資金均分為 10 個部位（最多同時持 10 檔），逐日以收盤 mark-to-market 之投組淨值，已扣交易成本。基準為買進持有台股 (0050) / 美股 (SPY)；「全部」為依交易數加權混合。曲線依上方篩選區間重設基準。</p>
+        <div class="multi-curve-wrap">
+          <MultiEquityChart :series="chartSeries" :height="240" />
+        </div>
+      </section>
+
+      <!-- 年度超額報酬 (α) 對比 (New Feature) -->
+      <section class="strat chart-section">
+        <h2 class="chart-section-title">📆 策略年度績效明細</h2>
+        <p class="strat-desc">查看各策略在不同年份內，經過市場篩選後的交易數量、勝率與超額報酬 α 表現。</p>
+        <div class="yearly-comparison">
+          <div v-for="st in filteredStrategies" :key="'yearly-' + st.id" class="yearly-strategy-card">
+            <div class="yearly-strat-title">
+              <span class="sid">{{ st.id }}</span> {{ st.label }}
+            </div>
+            <table class="bt-table small">
+              <thead>
+                <tr>
+                  <th>年份</th>
+                  <th class="num">交易數</th>
+                  <th class="num">勝率</th>
+                  <th class="num">平均報酬</th>
+                  <th class="num">超額 (α)</th>
+                  <th class="num">贏大盤率</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="y in st._yearly" :key="y.year">
+                  <td>{{ y.year }} 年</td>
+                  <td class="num">{{ y.n_trades }}</td>
+                  <td class="num">{{ rate(y.win_rate) }}</td>
+                  <td class="num" :style="{ color: retColor(y.avg_return) }">{{ pct(y.avg_return) }}</td>
+                  <td class="num" :style="{ color: retColor(y.avg_alpha) }"><strong>{{ pct(y.avg_alpha) }}</strong></td>
+                  <td class="num">{{ rate(y.beat_bm_rate) }}</td>
+                </tr>
+                <tr v-if="!(st._yearly?.length)">
+                  <td colspan="6" class="empty-td">目前篩選條件下無年度交易數據</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 命中率統計視覺化 -->
+      <section class="strat chart-section">
+        <h2 class="chart-section-title">🎯 「看多」訊號持有天數命中率</h2>
+        <p class="strat-desc">探討：被點名「看多」之後，持有 30 / 60 / 90 天的上漲勝率與打敗基準的機率。</p>
+        <div class="hit-rate-container">
+          <div class="hit-rate-chart-wrap">
+            <HitRateChart :hitRate="hitRate" />
+          </div>
+          <div class="hit-rate-table-wrap">
+            <table class="bt-table small">
+              <thead>
+                <tr><th>持有天數</th><th>樣本數</th><th>上漲比例</th><th>平均報酬</th><th>超額(α)</th><th>贏大盤率</th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="h in hitRate" :key="h.horizon">
+                  <td>{{ h.horizon }} 天</td>
+                  <td class="num">{{ h.n || '—' }}</td>
+                  <td class="num">{{ rate(h.pct_positive) }}</td>
+                  <td class="num" :style="{ color: retColor(h.avg_return) }">{{ pct(h.avg_return) }}</td>
+                  <td class="num" :style="{ color: retColor(h.avg_alpha) }">{{ pct(h.avg_alpha) }}</td>
+                  <td class="num">{{ rate(h.beat_bm_rate) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 策略個別解析 -->
+      <h2 class="section-divider">策略個別解析</h2>
+
+      <section v-for="st in filteredStrategies" :key="st.id" class="strat details-card">
+        <div class="strat-header-row">
+          <h3 class="strat-title"><span class="sid">{{ st.id }}</span> {{ st.label }}</h3>
+          <button class="expand-btn-text" @click="toggle(st.id)">
+            {{ expanded[st.id] ? '收合明細 ▲' : `展開交易明細（${getFilteredTrades(st.id, st._trades).length} 筆）▼` }}
+          </button>
         </div>
 
         <!-- 聚合統計表 -->
@@ -182,17 +566,23 @@ function topBottomBy(trades: TradeRow[], key: 'ret' | 'alpha', n = 5) {
         <template v-if="st._trades.length">
           <div class="performers">
             <div class="perf-col">
-              <div class="perf-head win">最佳 5 檔（α）</div>
+              <div class="perf-head win">最佳 5 檔超額 (α)</div>
               <div v-for="t in topBottomBy(st._trades, 'alpha').top" :key="t.ticker + t.entry_date" class="perf-row">
-                <span class="perf-ticker">{{ t.ticker }}</span>
+                <router-link v-if="tickerToIdMap[t.ticker]" :to="`/stocks/${tickerToIdMap[t.ticker]}`" class="perf-ticker">
+                  {{ t.ticker }}
+                </router-link>
+                <span v-else class="perf-ticker">{{ t.ticker }}</span>
                 <span class="perf-name">{{ t.name_zh }}</span>
                 <span class="perf-val win">{{ pct(t.alpha) }}</span>
               </div>
             </div>
             <div class="perf-col">
-              <div class="perf-head loss">最差 5 檔（α）</div>
+              <div class="perf-head loss">最差 5 檔超額 (α)</div>
               <div v-for="t in topBottomBy(st._trades, 'alpha').bottom" :key="t.ticker + t.entry_date" class="perf-row">
-                <span class="perf-ticker">{{ t.ticker }}</span>
+                <router-link v-if="tickerToIdMap[t.ticker]" :to="`/stocks/${tickerToIdMap[t.ticker]}`" class="perf-ticker">
+                  {{ t.ticker }}
+                </router-link>
+                <span v-else class="perf-ticker">{{ t.ticker }}</span>
                 <span class="perf-name">{{ t.name_zh }}</span>
                 <span class="perf-val loss">{{ pct(t.alpha) }}</span>
               </div>
@@ -200,54 +590,90 @@ function topBottomBy(trades: TradeRow[], key: 'ret' | 'alpha', n = 5) {
           </div>
         </template>
 
-        <!-- 展開交易清單 -->
-        <button class="expand-btn" @click="toggle(st.id)">
-          {{ expanded[st.id] ? '收合' : `查看 ${st._trades.length} 筆交易 ▾` }}
-        </button>
-        <div v-show="expanded[st.id]" class="trade-log">
-          <table class="bt-table small">
-            <thead>
-              <tr><th>股票</th><th>市場</th><th>集日期</th><th>進場</th><th>出場</th><th>報酬</th><th>超額(α)</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="t in st._trades" :key="t.ticker + t.entry_date">
-                <td><span class="ticker">{{ t.ticker }}</span> {{ t.name_zh }}</td>
-                <td>{{ t.market }}</td>
-                <td class="mono">{{ t.ep_date }}</td>
-                <td class="mono">{{ t.entry_date }}</td>
-                <td class="mono">{{ t.exit_date }}</td>
-                <td class="num" :style="{ color: retColor(t.ret) }">{{ pct(t.ret) }}</td>
-                <td class="num" :style="{ color: retColor(t.alpha) }"><strong>{{ pct(t.alpha) }}</strong></td>
-              </tr>
-            </tbody>
-          </table>
+        <!-- 交易清單展開區域 -->
+        <div v-show="expanded[st.id]" class="trade-log-wrap">
+          <div class="trade-filter-bar">
+            <input 
+              type="text" 
+              v-model="searchQuery[st.id]" 
+              placeholder="搜尋代號或名稱..." 
+              class="trade-search-input" 
+            />
+            <div class="trade-filter-pills">
+              <button 
+                class="pill-btn small" 
+                :class="{ active: tradeResultFilter[st.id] === 'ALL' }" 
+                @click="tradeResultFilter[st.id] = 'ALL'"
+              >
+                全部交易
+              </button>
+              <button 
+                class="pill-btn small" 
+                :class="{ active: tradeResultFilter[st.id] === 'WIN' }" 
+                @click="tradeResultFilter[st.id] = 'WIN'"
+              >
+                獲利
+              </button>
+              <button 
+                class="pill-btn small" 
+                :class="{ active: tradeResultFilter[st.id] === 'LOSS' }" 
+                @click="tradeResultFilter[st.id] = 'LOSS'"
+              >
+                虧損
+              </button>
+            </div>
+            <span class="filtered-count">
+              篩選後共 {{ getFilteredTrades(st.id, st._trades).length }} 筆
+            </span>
+          </div>
+
+          <div class="trade-log">
+            <table class="bt-table small">
+              <thead>
+                <tr>
+                  <th>股票</th>
+                  <th>市場</th>
+                  <th>集日期</th>
+                  <th>進場</th>
+                  <th>出場</th>
+                  <th>持有天數</th>
+                  <th class="num">報酬</th>
+                  <th class="num">超額(α)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="t in getFilteredTrades(st.id, st._trades)" :key="t.ticker + t.entry_date">
+                  <td>
+                    <router-link v-if="tickerToIdMap[t.ticker]" :to="`/stocks/${tickerToIdMap[t.ticker]}`" class="ticker-link">
+                      <span class="ticker">{{ t.ticker }}</span>
+                    </router-link>
+                    <span v-else class="ticker">{{ t.ticker }}</span>
+                    <span class="stock-name">{{ t.name_zh }}</span>
+                  </td>
+                  <td>{{ t.market }}</td>
+                  <td class="mono">{{ t.ep_date }}</td>
+                  <td class="mono">{{ t.entry_date }}</td>
+                  <td class="mono">{{ t.exit_date }}</td>
+                  <td class="num">{{ getDaysBetween(t.entry_date, t.exit_date) }} 天</td>
+                  <td class="num" :style="{ color: retColor(t.ret) }">{{ pct(t.ret) }}</td>
+                  <td class="num" :style="{ color: retColor(t.alpha) }"><strong>{{ pct(t.alpha) }}</strong></td>
+                </tr>
+                <tr v-if="getFilteredTrades(st.id, st._trades).length === 0">
+                  <td colspan="8" class="empty-td">無符合條件之交易</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
 
-      <!-- 命中率 -->
-      <section class="strat">
-        <h2 class="strat-title">📊 看多訊號命中率</h2>
-        <p class="strat-desc">每次「看多」後 N 天，股價上漲的比例與平均報酬</p>
-        <table class="bt-table">
-          <thead>
-            <tr><th>持有天數</th><th>樣本數</th><th>上漲比例</th><th>平均報酬</th><th>超額(α)</th><th>贏基準比例</th></tr>
-          </thead>
-          <tbody>
-            <tr v-for="h in hitRate" :key="h.horizon">
-              <td>{{ h.horizon }} 天</td>
-              <td class="num">{{ h.n || '—' }}</td>
-              <td class="num">{{ rate(h.pct_positive) }}</td>
-              <td class="num" :style="{ color: retColor(h.avg_return) }">{{ pct(h.avg_return) }}</td>
-              <td class="num" :style="{ color: retColor(h.avg_alpha) }">{{ pct(h.avg_alpha) }}</td>
-              <td class="num">{{ rate(h.beat_bm_rate) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-
       <p class="method">
-        交易假設：進場價為集發布日隔日起第一個收盤，收盤對收盤計算；基準 TW→0050、US→SPY。
-        S2 持有 {{ holdDays }} 天。折線圖為「累計平均報酬」（隨交易結算逐筆更新的移動均值）。
+        交易假設說明：進場價為集發布日隔日起第一個收盤，收盤對收盤計算；基準 TW→0050、US→SPY。
+        報酬<strong>已扣交易成本</strong>（台股：手續費 0.1425%／邊 + 證交稅 0.3% 賣出 + 滑價 0.05%／邊；
+        美股：免佣金，僅估滑價 0.05%／邊）。基準以被動持有計、不扣每筆成本，
+        故 α 代表「扣掉自己的交易成本後是否仍贏過懶人持有大盤」。
+        S2 持有 {{ holdDays }} 天。折線圖為逐日 mark-to-market 之投組淨值（資金均分 10 部位、含現金空檔），
+        Sharpe／MDD／CAGR 皆由此日頻序列計算。
       </p>
     </template>
   </div>
@@ -255,78 +681,251 @@ function topBottomBy(trades: TradeRow[], key: 'ret' | 'alpha', n = 5) {
 
 <style scoped>
 .page-header { display: flex; align-items: baseline; gap: 1rem; margin-bottom: 1rem; }
-.page-title { font-size: 1.4rem; font-weight: 700; color: #63b3ed; }
-.ref-date { font-size: 0.78rem; color: #718096; }
-.loading { color: #718096; }
+.page-title { font-size: 1.6rem; font-weight: 800; color: #63b3ed; }
+.ref-date { font-size: 0.8rem; color: #718096; }
+.loading { color: #718096; padding: 2rem 0; text-align: center; }
 
 .disclaimer {
   background: #2d2410; color: #f6ad55; font-size: 0.82rem; line-height: 1.6;
-  padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1.25rem;
+  padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1.5rem;
+  border-left: 4px solid #f6ad55;
 }
 .disclaimer strong { color: #fbd38d; }
 
 /* 篩選列 */
 .filter-bar {
-  display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
-  background: #1a1f2e; padding: 0.6rem 1rem; border-radius: 8px; margin-bottom: 1.5rem;
+  display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
+  background: #1a1f2e; padding: 0.75rem 1.25rem; border-radius: 8px; margin-bottom: 1.5rem;
+  border: 1px solid #2d3748;
 }
-.filter-label { font-size: 0.8rem; color: #718096; white-space: nowrap; }
+.filter-group {
+  display: flex; align-items: center; gap: 0.75rem;
+}
+.filter-label { font-size: 0.8rem; color: #718096; font-weight: 600; white-space: nowrap; }
 .filter-sep { color: #718096; }
 .date-input {
   background: #0d1117; color: #e2e8f0; border: 1px solid #2d3748;
-  border-radius: 4px; padding: 0.25rem 0.5rem; font-size: 0.8rem; outline: none;
+  border-radius: 6px; padding: 0.35rem 0.5rem; font-size: 0.8rem; outline: none;
+  font-family: monospace;
+}
+.date-input:focus {
+  border-color: #63b3ed;
+}
+.date-range-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 .reset-btn {
-  background: #2d3748; color: #a0aec0; border: none; border-radius: 4px;
-  padding: 0.25rem 0.6rem; font-size: 0.78rem; cursor: pointer;
+  background: #2d3748; color: #a0aec0; border: none; border-radius: 6px;
+  padding: 0.35rem 0.75rem; font-size: 0.78rem; cursor: pointer;
+  transition: all 0.2s;
 }
-.reset-btn:hover { background: #4a5568; }
-.filter-count { font-size: 0.75rem; color: #4a5568; margin-left: auto; }
+.reset-btn:hover { background: #4a5568; color: #fff; }
+.filter-count { font-size: 0.78rem; color: #718096; margin-left: auto; }
 
-.strat { margin-bottom: 2.5rem; }
-.strat-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 0.4rem; }
+/* 主要策略選擇器 */
+.featured-bar {
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+.featured-label { font-size: 0.85rem; color: #a0aec0; font-weight: 600; }
+
+/* KPI Grid */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Chart Sections */
+.chart-section {
+  background: #1a1f2e;
+  border: 1px solid #2d3748;
+  border-radius: 10px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+.chart-section-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 0.3rem;
+  color: #e2e8f0;
+}
+.multi-curve-wrap {
+  margin-top: 1rem;
+}
+
+/* Hit Rate Split */
+.hit-rate-container {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 1.5rem;
+  align-items: center;
+  margin-top: 1rem;
+}
+@media (max-width: 768px) {
+  .hit-rate-container {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Yearly breakdown grid */
+.yearly-comparison {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.25rem;
+  margin-top: 1rem;
+}
+.yearly-strategy-card {
+  background: #1e2535;
+  border: 1px solid #2d3748;
+  border-radius: 8px;
+  padding: 1rem;
+}
+.yearly-strat-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid #2d3748;
+  padding-bottom: 0.35rem;
+}
+
+/* Details Cards & Divider */
+.section-divider {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #a0aec0;
+  margin: 2.5rem 0 1rem 0;
+  border-bottom: 1px solid #2d3748;
+  padding-bottom: 0.5rem;
+}
+.details-card {
+  background: #151a26;
+  border: 1px solid #232c3f;
+  border-radius: 10px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+.strat-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+.strat-title { font-size: 1.1rem; font-weight: 700; }
 .strat-title .sid { color: #63b3ed; font-family: monospace; margin-right: 0.3rem; }
 .strat-desc { font-size: 0.8rem; color: #718096; margin-bottom: 0.75rem; }
 
-.curve-wrap { margin-bottom: 0.75rem; }
+.expand-btn-text {
+  background: none; border: none; color: #63b3ed;
+  font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  padding: 0.25rem 0.5rem;
+}
+.expand-btn-text:hover {
+  text-decoration: underline;
+}
 
+/* Tables */
 .bt-table { width: 100%; border-collapse: collapse; }
 .bt-table th {
-  text-align: left; padding: 0.5rem 0.9rem; background: #1a1f2e; color: #718096;
+  text-align: left; padding: 0.6rem 0.9rem; background: #1e2535; color: #718096;
   font-size: 0.76rem; font-weight: 600; border-bottom: 1px solid #2d3748;
 }
-.bt-table td { padding: 0.5rem 0.9rem; border-bottom: 1px solid #1e2535; font-size: 0.85rem; }
-.bt-table.small td { padding: 0.35rem 0.7rem; font-size: 0.78rem; }
+.bt-table td { padding: 0.6rem 0.9rem; border-bottom: 1px solid #1e2535; font-size: 0.85rem; }
+.bt-table.small td { padding: 0.45rem 0.8rem; font-size: 0.78rem; }
 .bt-table tr.dim td { color: #4a5568; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .muted { color: #718096; }
 .mono { font-family: monospace; font-size: 0.78rem; color: #718096; }
-.ticker { font-family: monospace; color: #90cdf4; font-weight: 600; margin-right: 0.3rem; }
+.ticker { font-family: monospace; color: #63b3ed; font-weight: 600; }
+.ticker-link {
+  text-decoration: none;
+}
+.ticker-link:hover .ticker {
+  text-decoration: underline;
+}
+.stock-name {
+  color: #e2e8f0;
+  margin-left: 0.4rem;
+}
+.empty-td {
+  text-align: center;
+  color: #4a5568;
+  padding: 2rem !important;
+}
 
 /* Performers */
 .performers {
   display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
-  margin: 0.75rem 0;
+  margin: 1rem 0;
 }
-.perf-col { background: #1a1f2e; border-radius: 6px; padding: 0.5rem 0.75rem; }
-.perf-head { font-size: 0.74rem; font-weight: 600; margin-bottom: 0.4rem; }
+.perf-col { background: #1e2535; border-radius: 8px; padding: 0.6rem 0.9rem; border: 1px solid #2d3748; }
+.perf-head { font-size: 0.76rem; font-weight: 700; margin-bottom: 0.5rem; letter-spacing: 0.04em; }
 .perf-head.win { color: #68d391; }
 .perf-head.loss { color: #fc8181; }
-.perf-row { display: flex; align-items: baseline; gap: 0.4rem; padding: 0.2rem 0; font-size: 0.78rem; }
-.perf-ticker { font-family: monospace; color: #90cdf4; font-weight: 600; min-width: 3.5rem; }
+.perf-row { display: flex; align-items: baseline; gap: 0.4rem; padding: 0.25rem 0; font-size: 0.78rem; border-bottom: 1px dashed #2d3748; }
+.perf-row:last-child { border-bottom: none; }
+.perf-ticker { font-family: monospace; color: #63b3ed; font-weight: 600; min-width: 3.5rem; text-decoration: none; }
+.perf-ticker:hover { text-decoration: underline; }
 .perf-name { color: #a0aec0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.perf-val { font-variant-numeric: tabular-nums; font-size: 0.8rem; margin-left: auto; }
+.perf-val { font-variant-numeric: tabular-nums; font-size: 0.8rem; margin-left: auto; font-weight: 600; }
 .perf-val.win { color: #68d391; }
 .perf-val.loss { color: #fc8181; }
 
-/* 展開按鈕 & 交易清單 */
-.expand-btn {
-  background: none; border: 1px solid #2d3748; color: #718096;
-  border-radius: 4px; padding: 0.3rem 0.7rem; font-size: 0.76rem;
-  cursor: pointer; margin-top: 0.5rem;
+/* Filter pills and Search inside trade log */
+.trade-log-wrap {
+  margin-top: 1rem;
+  border-top: 1px solid #2d3748;
+  padding-top: 1rem;
 }
-.expand-btn:hover { background: #1a1f2e; color: #a0aec0; }
-.trade-log { margin-top: 0.5rem; max-height: 360px; overflow-y: auto; border-radius: 6px; }
+.trade-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+.trade-search-input {
+  background: #0d1117;
+  color: #e2e8f0;
+  border: 1px solid #2d3748;
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  width: 200px;
+  outline: none;
+}
+.trade-search-input:focus {
+  border-color: #63b3ed;
+}
+.trade-filter-pills {
+  display: flex;
+  gap: 0.35rem;
+}
+.pill-btn {
+  background: #2d3748; color: #a0aec0; border: none; border-radius: 6px;
+  padding: 0.35rem 0.75rem; font-size: 0.8rem; cursor: pointer;
+  transition: all 0.2s;
+}
+.pill-btn.small {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+.pill-btn:hover { background: #4a5568; color: #fff; }
+.pill-btn.active {
+  background: #3182ce;
+  color: #fff;
+}
+.filtered-count {
+  font-size: 0.75rem;
+  color: #718096;
+  margin-left: auto;
+}
 
-.method { font-size: 0.76rem; color: #718096; line-height: 1.6; margin-top: 1rem; }
+.trade-log { max-height: 400px; overflow-y: auto; border-radius: 8px; border: 1px solid #2d3748; }
+
+.method { font-size: 0.76rem; color: #718096; line-height: 1.6; margin-top: 1.5rem; }
 </style>
