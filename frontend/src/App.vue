@@ -28,6 +28,7 @@ function closeMenu() { menuOpen.value = false }
         <RouterLink to="/stocks">個股追蹤</RouterLink>
         <RouterLink to="/backtest">回測</RouterLink>
         <RouterLink to="/episodes">集數列表</RouterLink>
+        <RouterLink to="/login-logs">登入紀錄</RouterLink>
         <button class="logout" @click="signOut">登出</button>
       </div>
 
@@ -44,6 +45,7 @@ function closeMenu() { menuOpen.value = false }
       <RouterLink to="/stocks" class="mm-link">個股追蹤</RouterLink>
       <RouterLink to="/backtest" class="mm-link">回測</RouterLink>
       <RouterLink to="/episodes" class="mm-link">集數列表</RouterLink>
+      <RouterLink to="/login-logs" class="mm-link">登入紀錄</RouterLink>
       <button class="mm-link mm-logout" @click="signOut">登出</button>
     </div>
 

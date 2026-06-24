@@ -16,6 +16,16 @@ async function refreshAllowed(): Promise<void> {
   allowed.value = !error && data === true
 }
 
+/** 寫入 login_logs（best-effort，失敗不影響登入流程） */
+async function recordLogin(s: Session): Promise<void> {
+  const method = s.user.app_metadata?.provider ?? 'unknown'
+  await supabase.from('login_logs').insert({
+    user_id: s.user.id,
+    email: s.user.email ?? '',
+    method,
+  }).then(undefined, () => {/* ignore */})
+}
+
 /** App 啟動時呼叫一次：取得 session + 訂閱變化 */
 export async function initAuth(): Promise<void> {
   const { data } = await supabase.auth.getSession()
@@ -23,9 +33,10 @@ export async function initAuth(): Promise<void> {
   await refreshAllowed()
   authReady.value = true
 
-  supabase.auth.onAuthStateChange(async (_event, s) => {
+  supabase.auth.onAuthStateChange(async (event, s) => {
     session.value = s
     await refreshAllowed()
+    if (event === 'SIGNED_IN' && s) await recordLogin(s)
   })
 }
 
@@ -33,13 +44,6 @@ export function signInWithGoogle() {
   return supabase.auth.signInWithOAuth({
     provider: 'google',
     options: { redirectTo: window.location.origin },
-  })
-}
-
-export function signInWithEmail(email: string) {
-  return supabase.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: window.location.origin },
   })
 }
 
