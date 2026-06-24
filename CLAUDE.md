@@ -20,8 +20,12 @@
 
 - **資料**：已抓並處理 **EP1–672（全量 672 集）**，最新一集 EP672（2026-06-20）。
 - **股價**：592 檔個股/ETF + 基準，**5 年**日收盤。
-- **回測**：三種規則 + 命中率已跑通，結果存在 `backtest_runs`。
-- **前端**：決策面板 / 個股追蹤 / 個股詳情 / 回測 / 集數列表 全部可用，已部署為 Vite dev（`npm run dev`，port 5173）。
+- **回測（2026-06-24 大改版）**：**六種策略** + 命中率，結果存在 `backtest_runs`。
+  - **S1–S3** 原始基礎規則；**S4–S6** 為以完整資料掃描後挑出的「最佳使用」策略（S4 推薦：他有部位+信心≥0.9 看多、持有90天）。
+  - **報酬已扣交易成本**（內化進 `trades.ret`，見 §5）。
+  - **日頻 NAV**：後端輸出每策略每市場的（週頻取樣）淨值序列，前端切片重設基準後算 Sharpe/MDD/CAGR。
+  - **目前建議**：每策略附 `recommendations`（截至資料日仍開倉中的標的，分「可買進≤14天／續抱」）。
+- **前端**：決策面板 / 個股追蹤 / 個股詳情 / 回測 / 集數列表 全部可用，已部署為 Vite dev（`npm run dev`，port 5173）。回測頁有「主要策略」切換器（KPI 與建議清單隨之切換）。
 - 全部資料在 **Supabase cloud**（見 §4），前端用 anon key 直接查。
 
 ### 環境注意（重要）
@@ -83,12 +87,16 @@ gooaye/
 │       │   ├── MentionTip.vue       ← PriceChart 的 hover 浮框（crosshair 觸發）
 │       │   ├── Sparkline.vue        ← 個股列表的近30天迷你圖（保留手寫 SVG，最輕量）
 │       │   ├── InfoTip.vue          ← 可重用 ⓘ 點擊式說明 popover（如「訊號分數」定義）
-│       │   └── EquityChart.vue      ← 回測資金曲線（ECharts line + 0% markLine）
+│       │   ├── EquityChart.vue      ← 回測資金曲線（ECharts line + 0% markLine；舊版單線）
+│       │   ├── MultiEquityChart.vue ← 回測多策略 NAV 合圖（ECharts；color/itemStyle/lineStyle 一致）
+│       │   ├── KpiCard.vue          ← 回測 KPI 指標卡（含 InfoTip）
+│       │   ├── HitRateChart.vue     ← 命中率長條圖（ECharts）
+│       │   └── RecommendationList.vue ← 策略「目前建議買進/續抱」清單表
 │       └── views/
 │           ├── DecisionHome.vue ← 「/」決策面板：他有部位/高分看多/最新提及
 │           ├── StockList.vue    ← 個股追蹤表（篩選、排序、現價、迷你圖、表現）
 │           ├── StockDetail.vue  ← 單股：立場+現價合併卡、時間範圍選擇器、兩張圖、提及紀錄
-│           ├── BacktestView.vue ← 回測：三策略表、資金曲線、區間篩選、最佳/最差、命中率
+│           ├── BacktestView.vue ← 回測：6策略、主要策略切換器、KPI、目前建議、NAV合圖、年度、命中率、交易明細。**以 trades+daily 為單一事實來源在前端即時重算（隨區間/市場篩選互動）**
 │           ├── EpisodeList.vue / EpisodeDetail.vue
 │           └── router/index.ts
 └── supabase/migrations/         ← _init / _asset_type / _analytics / _auth_gate / _bull_stats / _advisor_security_definer / 20260621000004_episode_transcript
@@ -140,7 +148,7 @@ uv run python scripts/run_analytics.py    # 5. 算 stock_performance + 跑回測
 | `mentions` | 一集提到一檔一次 | episode_id, stock_id, name_raw, ticker_guess, market, asset_type, direction(看多/看空/中性), confidence(0-1), has_position, quote, note |
 | `prices` | 日收盤 | stock_id, date, close, unique(stock_id,date) |
 | `stock_performance` | 跟單績效快照 | current_price, first_bull_*, ret_since_first_bull, last_bull_*, ret_since_last_bull, **bull_n / bull_win_rate / bull_avg_return**（看多持有60天命中率） |
-| `backtest_runs` | 回測結果 | reference_date, **results(jsonb)**（內含 strategies[含每筆 trades]、hit_rate） |
+| `backtest_runs` | 回測結果 | reference_date, **results(jsonb)**（內含 strategies[每筆 trades + daily 週頻NAV + recommendations]、hit_rate） |
 
 - 全表開 RLS、public read（前端 anon 可讀）；寫入只透過後端 service_role。
 
@@ -158,8 +166,13 @@ uv run python scripts/run_analytics.py    # 5. 算 stock_performance + 跑回測
 | 訊號分數 | Σ 方向權重 × 信心 × e^(−Δ天/半衰期)，半衰期 30 天 | 近期觀點自動浮上來 |
 | 新鮮度 | fresh ≤14天 / aging ≤60天 / stale >60天 | 決策面板與列表預設隱藏 stale |
 | 衰減基準日 | 資料集最新一集（前端 referenceDate）；UI 顯示用 | |
-| 回測規則 | S1 看多進、轉中性/看空出；S2 看多進、持有60天；S3 只跟「他有部位」的看多 | 使用者要三種並列比較 |
+| 回測規則 | S1 看多進、轉中性/看空出；S2 看多進、持有60天；S3 只跟「他有部位」看多；**S4 他有部位+信心≥0.9，持有90天（推薦）；S5 信心≥0.9，持有60天；S6 信心≥0.9 看多進、翻空出** | S4–S6 為 2026-06-24 以完整資料掃描信心×部位×出場規則後挑出。多頭中 CAGR 最不可信，**選股看 α 與贏大盤率** |
 | 回測基準 | TW→0050、US→SPY、其他→SPY(fallback) | 各市場對應 |
+| **交易成本（2026-06-24）** | 成本乘進每筆進出場價、內化進 `trades.ret`（TW 0.1425%/邊+0.3%證交稅+0.05%滑價；US 0.05%滑價）。基準以被動持有計、不扣每筆成本 | `trades` 為單一事實來源，前端所有衍生數字自動為「淨值後」；α=扣自己成本後是否仍贏懶人持有大盤。`CostModel` in `backtest.py` |
+| **日頻 NAV（2026-06-24）** | 後端輸出每策略每市場（週頻取樣）淨值序列：10 等額 sleeve、逐日 mark-to-market、含現金空檔。前端切片重設基準→算 Sharpe(依實際取樣頻率年化)/MDD/CAGR | 解決原本「每筆交易報酬」算 Sharpe 的統計問題（重疊、非等週期）。**前端 BacktestView 以 trades+daily 為單一事實來源即時重算，後端不再預存 mdd/sharpe** |
+| **目前建議（2026-06-24）** | 每策略 `recommendations`：依規則判定截至資料日仍開倉中的標的，分「可買進(訊號≤14天)／續抱」 | 讓策略產生實際買進價值；前端 `RecommendationList.vue` + 主要策略切換器 |
+| **邊際真實性檢驗（2026-06-24）** | 每策略 `factor`：① 美股每筆 α vs SPY/QQQ/**SOXX(費半)** + 贏面；② 把美股淨值回歸到 市場+半導體 兩因子，拆出 β大盤/β費半/**殘餘真α**/R²。`PriceBook.bench()` 取具名基準（SPY/QQQ/SOXX/0050） | 揭穿「α 其實多是半導體 beta」：對 SPY 漂亮的 α 換成費半後大幅縮水。S4 β費半 0.64、殘餘真α約 +7%/年（modest）。前端「🔬 邊際真實性檢驗」區塊 |
+| **指數 ETF 排除（2026-06-24）** | 自選股 universe 排除廣義大盤指數 ETF（`INDEX_ETF_TICKERS`：0050/006208/VOO/VTI/SPY/QQQ/IWM/TQQQ） | 「推薦買指數」不算選股能力；先前 S5 約 15% 標的是台灣50/VOO 等指數，會灌水 |
 
 ---
 
@@ -170,7 +183,8 @@ uv run python scripts/run_analytics.py    # 5. 算 stock_performance + 跑回測
 3. **OpenAI 模型限 gpt-5.4 系列** — 該 key project 沒有別的。
 4. **回測報酬被高估** — 樣本是 2026 上半年大多頭，UI 已加警語；判讀看**超額 α 與勝率**，不是絕對報酬。
 5. **`supabase db push` 的 Docker 警告可忽略** — cloud push 會成功。
-6. **PostgREST 單次查詢上限 1000 列** — 抓全量（prices、回測）要分頁，見 `analytics/prices.py` 與 `useData.ts` 的分頁寫法。
+6. **PostgREST 單次查詢上限 1000 列** — 抓全量（prices、回測）要分頁，見 `analytics/prices.py`、`useData.ts`、`backtest.py` 的分頁寫法。
+   - ⚠️ **2026-06-24 修掉的重大 bug**：`run_backtest` 撈 mentions 沒分頁，被截在 1000 筆（全量 4362），導致先前所有回測只用了 ~23%（且最舊）資料。現用 `_fetch_all_mentions` 分頁。**新增任何「撈全表」查詢都要分頁。**
 7. **題材 vs 個股** — 個股追蹤頁預設只顯示可交易（個股+ETF），題材分流到「題材/指數」分頁。正規化邏輯集中在 `normalize/canonical.py`，要加新股/別名就往對照表加一行。
 8. **圖表已改用套件**（PriceChart=TradingView Lightweight Charts、Trajectory/Equity=ECharts，Sparkline 仍手寫 SVG）。Price 與 Trajectory 為兩套件，x 軸**不再像素級對齊**（已接受輕微差異）。細節見 §2「圖表套件」。
 9. **金鑰檔 gitignored** — 同一台機器的新 session 讀得到 `.env`；換機要從 `.env.example` 重建並重新填 key（見 §7）。

@@ -287,6 +287,169 @@ def _daily_block(book: PriceBook, trades: list[Trade], scope: str) -> dict | Non
     return {"dates": calendar, "nav": nav, "bm_nav": bm_nav}
 
 
+# ── 各策略「目前建議持有/買進」：依規則判定此刻仍開倉的標的 ──
+#
+# flip 類：走訊號軸，若最後仍處於「持有」狀態（最近一次合格看多後尚未轉中性/看空）→ 開倉中。
+# ndays 類：合格看多的進場日 + N 天若尚未到（series 在 entry+N 還沒有收盤）→ 開倉中；
+#           同檔取最近一筆。
+# 回傳含觸發集數、引述、信心、進場價、現價、未實現報酬、持有天數、是否仍新鮮。
+
+FRESH_DAYS = 14  # 訊號距今 ≤14 天視為「可買進」，較舊則為「續抱」
+
+
+def _rec_from(
+    stocks: dict, stock_id: int, m: dict, entry: tuple[str, float],
+    current: tuple[str, float],
+) -> dict:
+    s = stocks[stock_id]
+    days_held = (dt.date.fromisoformat(current[0]) - dt.date.fromisoformat(entry[0])).days
+    days_since = (dt.date.fromisoformat(current[0]) - dt.date.fromisoformat(m["date"])).days
+    return {
+        "stock_id": stock_id,
+        "ticker": s.get("ticker", ""),
+        "name_zh": s.get("name_zh") or "",
+        "market": s.get("market", ""),
+        "asset_type": s.get("asset_type", ""),
+        "ep_no": m.get("ep_no"),
+        "signal_date": m["date"],
+        "confidence": m.get("confidence"),
+        "has_position": m.get("has_position"),
+        "quote": m.get("quote"),
+        "entry_date": entry[0],
+        "entry_price": round(entry[1], 4),
+        "current_date": current[0],
+        "current_price": round(current[1], 4),
+        "ret": round(current[1] / entry[1] - 1, 4) if entry[1] else None,
+        "days_held": days_held,
+        "fresh": days_since <= FRESH_DAYS,
+    }
+
+
+def _current_recs(
+    book: PriceBook, stocks: dict, mentions_by_stock: dict,
+    kind: str, *, require_position: bool, min_conf: float, n: int | None,
+) -> list[dict]:
+    recs: list[dict] = []
+    for stock_id, mlist in mentions_by_stock.items():
+        series = book.series(stock_id)
+        if not series or stock_id not in stocks:
+            continue
+        cur = series.latest()
+        if not cur:
+            continue
+        if kind == "flip":
+            holding_m: dict | None = None
+            entry: tuple[str, float] | None = None
+            for m in mlist:
+                if _qualifies(m, min_conf, require_position):
+                    if holding_m is None:
+                        e = series.on_or_after(_plus_days(m["date"], 1))
+                        if e:
+                            holding_m, entry = m, e
+                elif m["direction"] in ("中性", "看空"):
+                    holding_m, entry = None, None
+            if holding_m and entry:
+                recs.append(_rec_from(stocks, stock_id, holding_m, entry, cur))
+        else:  # ndays
+            best: tuple[dict, tuple[str, float]] | None = None
+            for m in mlist:
+                if not _qualifies(m, min_conf, require_position):
+                    continue
+                e = series.on_or_after(_plus_days(m["date"], 1))
+                if not e:
+                    continue
+                # entry+N 尚無收盤 → 持有窗口未到期 → 仍開倉中
+                if series.on_or_after(_plus_days(e[0], n or 0)) is None:
+                    if best is None or m["date"] > best[0]["date"]:
+                        best = (m, e)
+            if best:
+                recs.append(_rec_from(stocks, stock_id, best[0], best[1], cur))
+    recs.sort(key=lambda r: r["signal_date"], reverse=True)
+    return recs
+
+
+# ── 邊際真實性檢驗：嚴格對標 + 因子（市場/半導體）beta 拆解 ──
+#
+# 廣義「大盤指數 ETF」不算選股能力（推薦買指數先天無法贏指數），自選股 universe 排除。
+INDEX_ETF_TICKERS = frozenset({"0050", "006208", "VOO", "VTI", "SPY", "QQQ", "IWM", "TQQQ"})
+
+
+def _alpha_vs(book: PriceBook, trades: list[Trade], ticker: str) -> dict | None:
+    """美股交易相對某具名基準（SPY/QQQ/SOXX）的每筆平均超額與贏面。"""
+    s = book.bench(ticker)
+    if not s:
+        return None
+    alphas: list[float] = []
+    for t in trades:
+        if t.market != "US":
+            continue
+        a = s.on_or_after(t.entry_date)
+        b = s.on_or_before(t.exit_date)
+        if a and b and a[1]:
+            alphas.append(t.ret - (b[1] / a[1] - 1))
+    if not alphas:
+        return None
+    return {
+        "n": len(alphas),
+        "avg_alpha": round(statistics.mean(alphas), 4),
+        "beat_rate": round(sum(x > 0 for x in alphas) / len(alphas), 4),
+    }
+
+
+def _factor_decomp(book: PriceBook, daily_us: dict | None) -> dict | None:
+    """把美股策略淨值回歸到 市場(SPY)+半導體(SOXX) 兩因子，拆出真 α 與 beta。
+
+    迴歸：r_strategy = α + β_mkt·r_SPY + β_semis·r_SOXX + ε（rf 假設 0）。
+    α 為截距（年化後），R² 反映報酬有多少由這兩個 beta 解釋。
+    """
+    if not daily_us:
+        return None
+    import numpy as np
+
+    dates, nav = daily_us["dates"], daily_us["nav"]
+    spy, soxx = book.bench("SPY"), book.bench("SOXX")
+    if not spy or not soxx or len(dates) < 12:
+        return None
+
+    def closes(series: Series) -> list[float | None]:
+        return [(series.on_or_before(d) or (None, None))[1] for d in dates]
+
+    sc, xc = closes(spy), closes(soxx)
+
+    def rets(vals: list) -> list[float]:
+        out = []
+        for i in range(1, len(vals)):
+            p, c = vals[i - 1], vals[i]
+            out.append(c / p - 1 if p and c else 0.0)
+        return out
+
+    y = np.array(rets(nav))
+    m = np.array(rets(sc))
+    s = np.array(rets(xc))
+    n = len(y)
+    if n < 10:
+        return None
+    X = np.column_stack([np.ones(n), m, s])
+    coef, *_ = np.linalg.lstsq(X, y, rcond=None)
+    a0, b_mkt, b_semis = coef
+    pred = X @ coef
+    ss_res = float(((y - pred) ** 2).sum())
+    ss_tot = float(((y - y.mean()) ** 2).sum())
+    r2 = 1 - ss_res / ss_tot if ss_tot > 0 else None
+
+    days = (dt.date.fromisoformat(dates[-1]) - dt.date.fromisoformat(dates[0])).days
+    ppy = n / (days / 365.25) if days > 0 else 52.0
+    alpha_ann = (1 + a0) ** ppy - 1
+
+    return {
+        "n": n,
+        "alpha_ann": round(float(alpha_ann), 4),
+        "beta_mkt": round(float(b_mkt), 3),
+        "beta_semis": round(float(b_semis), 3),
+        "r2": round(float(r2), 3) if r2 is not None else None,
+    }
+
+
 def _aggregate(trades: list[Trade], scope: str) -> dict:
     sel = trades if scope == "ALL" else [t for t in trades if t.market == scope]
     if not sel:
@@ -354,7 +517,7 @@ def _fetch_all_mentions(client: Client) -> list[dict]:
     while True:
         chunk = (
             client.table("mentions")
-            .select("stock_id,direction,has_position,confidence,episodes(published_at)")
+            .select("stock_id,direction,has_position,confidence,quote,episodes(ep_no,published_at)")
             .not_.is_("stock_id", "null")
             .order("id")
             .range(page * size, page * size + size - 1)
@@ -378,7 +541,8 @@ def run_backtest(
         client.table("stocks").select("id,ticker,name_zh,market,asset_type")
         .in_("asset_type", ["個股", "ETF"]).execute().data
     )
-    stocks = {s["id"]: s for s in stock_rows}
+    # 自選股 universe 排除廣義大盤指數 ETF（買指數不算選股能力；它們仍留在 book 當基準）
+    stocks = {s["id"]: s for s in stock_rows if s["ticker"] not in INDEX_ETF_TICKERS}
 
     mrows = _fetch_all_mentions(client)
     mentions_by_stock: dict[int, list[dict]] = {}
@@ -388,12 +552,15 @@ def run_backtest(
         pub = (m.get("episodes") or {}).get("published_at")
         if not pub:
             continue
+        ep = m.get("episodes") or {}
         mentions_by_stock.setdefault(m["stock_id"], []).append(
             {
                 "date": pub,
                 "direction": m["direction"],
                 "has_position": m["has_position"],
                 "confidence": m.get("confidence"),
+                "quote": m.get("quote"),
+                "ep_no": ep.get("ep_no"),
             }
         )
     for v in mentions_by_stock.values():
@@ -451,11 +618,23 @@ def run_backtest(
         # 再從日報酬序列正確計算 Sharpe(×√252)/MDD/CAGR。
         # 勝率/α/年度統計等仍由前端以 trades 即時重算（可隨篩選互動）。
         daily = {sc: _daily_block(book, all_trades, sc) for sc in ("ALL", "TW", "US")}
+        recs = _current_recs(
+            book, stocks, mentions_by_stock, kind,
+            require_position=kw.get("require_position", False),
+            min_conf=kw.get("min_conf", 0.0), n=kw.get("n"),
+        )
+        # 邊際真實性：嚴格對標（美股 vs SPY/QQQ/SOXX）+ 因子(市場/半導體)拆解
+        factor = {
+            "vs": {tic: _alpha_vs(book, all_trades, tic) for tic in ("SPY", "QQQ", "SOXX")},
+            "decomp": _factor_decomp(book, daily.get("US")),
+        }
         strategies.append({
             "id": sid_, "label": label,
             "scopes": [_aggregate(all_trades, sc) for sc in ("ALL", "TW", "US")],
             "trades": trade_log,
             "daily": {k: v for k, v in daily.items() if v},
+            "recommendations": recs,
+            "factor": factor,
         })
 
     results = {

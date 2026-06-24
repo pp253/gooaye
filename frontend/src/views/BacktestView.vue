@@ -6,6 +6,8 @@ import { loadStockSignals } from '@/lib/useData'
 import KpiCard from '@/components/KpiCard.vue'
 import MultiEquityChart from '@/components/MultiEquityChart.vue'
 import HitRateChart from '@/components/HitRateChart.vue'
+import RecommendationList from '@/components/RecommendationList.vue'
+import type { Rec } from '@/components/RecommendationList.vue'
 
 interface Scope {
   scope: string; n_trades: number; win_rate?: number; avg_return?: number
@@ -23,6 +25,13 @@ interface Strategy {
   trades?: TradeRow[]
   /** 後端日頻 NAV（每市場一條），前端切片重設基準後算 Sharpe/MDD/CAGR */
   daily?: Record<string, DailyBlock>
+  /** 截至資料日仍開倉中的標的（目前建議買進/續抱） */
+  recommendations?: Rec[]
+  /** 邊際真實性檢驗：嚴格對標 + 因子(市場/半導體)beta 拆解（美股、全期） */
+  factor?: {
+    vs: Record<string, { n: number; avg_alpha: number; beat_rate: number } | null>
+    decomp: { n: number; alpha_ann: number; beta_mkt: number; beta_semis: number; r2: number | null } | null
+  }
 }
 interface HitRow {
   horizon: number; n: number; pct_positive?: number
@@ -46,6 +55,8 @@ const selectedMarket = ref<'ALL' | 'TW' | 'US'>('ALL')
 
 // Hero 指標卡顯示的「主要策略」（預設指向推薦策略 S4，可切換）
 const featuredId = ref('S4')
+// 建議清單：只看「可買進（訊號≤14天）」
+const recFreshOnly = ref(false)
 
 // Ticker 尋找 Stock ID 用於超連結
 const tickerToIdMap = ref<Record<string, number>>({})
@@ -261,6 +272,41 @@ const featScopeAll = computed(() => featured.value?._scopes.find(sc => sc.scope 
 const featScopeTw = computed(() => featured.value?._scopes.find(sc => sc.scope === 'TW'))
 const featScopeUs = computed(() => featured.value?._scopes.find(sc => sc.scope === 'US'))
 
+// 主要策略「目前建議」：受市場篩選與「只看可買進」開關影響（不受日期區間影響，因為是當下持倉）
+const featuredRecs = computed(() => {
+  const recs = featured.value?.recommendations ?? []
+  return recs.filter(
+    r =>
+      (selectedMarket.value === 'ALL' || r.market === selectedMarket.value) &&
+      (!recFreshOnly.value || r.fresh),
+  )
+})
+const featuredBuyCount = computed(() => featuredRecs.value.filter(r => r.fresh).length)
+const featuredHoldCount = computed(() => featuredRecs.value.filter(r => !r.fresh).length)
+
+// 主要策略的邊際真實性檢驗（美股、全期，不隨日期/市場篩選變動）
+const featuredFactor = computed(() => featured.value?.factor)
+// 一句話判讀：殘餘真 α 是否站得住、是否主要靠半導體 beta
+const factorVerdict = computed(() => {
+  const d = featuredFactor.value?.decomp
+  if (!d) return ''
+  const bm = d.beta_mkt ?? 0
+  const bs = d.beta_semis ?? 0
+  const aSoxx = featuredFactor.value?.vs?.SOXX?.avg_alpha ?? 0
+  const beatSoxx = featuredFactor.value?.vs?.SOXX?.beat_rate ?? 0
+  // 依實際拆解判斷主導 beta 來源（而非假設半導體）
+  const betaSrc = bs >= 0.4 && bs >= bm ? '半導體' : bm >= 0.6 ? '大盤' : '市場／產業'
+  const r2txt = d.r2 != null ? `、R² ${d.r2.toFixed(2)}` : ''
+  const exposure = `報酬主要由${betaSrc} beta 解釋（β大盤 ${bm.toFixed(2)}、β費半 ${bs.toFixed(2)}${r2txt}）`
+  const residual =
+    aSoxx > 0 && beatSoxx >= 0.55
+      ? `剝掉這些 beta 後對最嚴的費半仍有正殘餘（+${(aSoxx * 100).toFixed(1)}%／贏面 ${(beatSoxx * 100).toFixed(0)}%），邊際偏真但幅度有限`
+      : aSoxx > 0
+        ? '殘餘超額為正但贏面僅約五成，邊際薄弱、近雜訊'
+        : '剝掉 beta 後對同產業沒有正超額，難認定為選股能力'
+  return `${exposure}。${residual}。`
+})
+
 // 各策略配色（線色與 legend 圖示共用，確保一致）
 const STRAT_COLORS: Record<string, string> = {
   S1: '#63b3ed', S2: '#f6ad55', S3: '#68d391',
@@ -453,6 +499,89 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
             <strong>CAGR (年化複合報酬)</strong>：由日頻投組淨值序列，依篩選區間首尾與實際天數年化。已扣交易成本，含資金上限（最多同時持 10 檔）與現金空檔。
           </template>
         </KpiCard>
+      </section>
+
+      <!-- 邊際真實性檢驗：嚴格對標 + 因子拆解 -->
+      <section v-if="featuredFactor?.decomp" class="strat chart-section">
+        <h2 class="chart-section-title">🔬 {{ featured?.id }} 邊際真實性檢驗（美股・全期）</h2>
+        <p class="strat-desc">
+          頭條的「贏大盤(α)」常常只是押對<strong>半導體 beta</strong>。這裡把策略報酬回歸到
+          市場(SPY)＋費半(SOXX)，看剝掉這兩個 beta 後是否還有<strong>殘餘真 α</strong>。
+          僅美股、全期；非投資建議。
+        </p>
+        <div class="factor-grid">
+          <!-- 嚴格對標 -->
+          <div class="factor-block">
+            <div class="factor-block-title">每筆平均超額 vs 不同基準（贏面）</div>
+            <table class="bt-table small">
+              <thead>
+                <tr><th>對標</th><th class="num">平均超額 α</th><th class="num">贏面</th><th class="num">樣本</th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="tic in ['SPY', 'QQQ', 'SOXX']" :key="tic">
+                  <td>
+                    {{ tic }}
+                    <span class="bm-note">{{ tic === 'SPY' ? '大盤' : tic === 'QQQ' ? '科技' : '費半（最嚴）' }}</span>
+                  </td>
+                  <td class="num" :style="{ color: retColor(featuredFactor?.vs?.[tic]?.avg_alpha) }">
+                    <strong>{{ featuredFactor?.vs?.[tic] ? pct(featuredFactor.vs[tic]!.avg_alpha) : '—' }}</strong>
+                  </td>
+                  <td class="num">{{ featuredFactor?.vs?.[tic] ? rate(featuredFactor.vs[tic]!.beat_rate) : '—' }}</td>
+                  <td class="num muted">{{ featuredFactor?.vs?.[tic]?.n ?? '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <!-- 因子拆解 -->
+          <div class="factor-block">
+            <div class="factor-block-title">因子拆解（r = α + β·市場 + β·費半）</div>
+            <div class="decomp-cards">
+              <div class="decomp-card">
+                <div class="decomp-label">對大盤 β</div>
+                <div class="decomp-val">{{ featuredFactor?.decomp?.beta_mkt?.toFixed(2) }}</div>
+              </div>
+              <div class="decomp-card">
+                <div class="decomp-label">對費半 β</div>
+                <div class="decomp-val" :class="{ hot: (featuredFactor?.decomp?.beta_semis ?? 0) >= 0.4 }">
+                  {{ featuredFactor?.decomp?.beta_semis?.toFixed(2) }}
+                </div>
+              </div>
+              <div class="decomp-card">
+                <div class="decomp-label">殘餘真 α（年化）</div>
+                <div class="decomp-val" :style="{ color: retColor(featuredFactor?.decomp?.alpha_ann) }">
+                  {{ pct(featuredFactor?.decomp?.alpha_ann) }}
+                </div>
+              </div>
+              <div class="decomp-card">
+                <div class="decomp-label">R²（beta 解釋度）</div>
+                <div class="decomp-val">{{ featuredFactor?.decomp?.r2 != null ? featuredFactor.decomp.r2.toFixed(2) : '—' }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="factor-verdict">📌 {{ factorVerdict }}</p>
+      </section>
+
+      <!-- 主要策略「目前建議買進／續抱」 -->
+      <section class="strat chart-section rec-section">
+        <h2 class="chart-section-title">🛒 {{ featured?.id }} 目前建議買進／續抱</h2>
+        <p class="strat-desc">
+          依「{{ featured?.label }}」規則，截至 {{ referenceDate }} 仍開倉中的標的。
+          <strong class="buy-hint">可買進</strong>＝訊號 ≤14 天（剛點名、時效新）；
+          <strong class="hold-hint">續抱</strong>＝較早進場、規則上仍持有。
+          切換上方「主要策略」可看各策略的建議；受市場篩選影響。未實現報酬為現價對進場價（未扣賣出成本）。
+        </p>
+        <div class="rec-controls">
+          <label class="fresh-toggle">
+            <input type="checkbox" v-model="recFreshOnly" />
+            只看可買進（訊號 ≤14 天）
+          </label>
+          <span class="rec-count">
+            可買 <strong class="buy-hint">{{ featuredBuyCount }}</strong> 檔 ・
+            續抱 <strong>{{ featuredHoldCount }}</strong> 檔
+          </span>
+        </div>
+        <RecommendationList :recs="featuredRecs" :tickerMap="tickerToIdMap" />
       </section>
 
       <!-- 三策略 NAV 淨值合圖 -->
@@ -723,6 +852,40 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
 }
 .reset-btn:hover { background: #4a5568; color: #fff; }
 .filter-count { font-size: 0.78rem; color: #718096; margin-left: auto; }
+
+/* 邊際真實性檢驗 */
+.factor-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-top: 0.75rem;
+}
+@media (max-width: 768px) { .factor-grid { grid-template-columns: 1fr; } }
+.factor-block-title { font-size: 0.82rem; color: #a0aec0; font-weight: 600; margin-bottom: 0.5rem; }
+.bm-note { color: #4a5568; font-size: 0.72rem; margin-left: 0.3rem; }
+.decomp-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.decomp-card {
+  background: #1e2535; border: 1px solid #2d3748; border-radius: 8px; padding: 0.7rem 0.9rem;
+}
+.decomp-label { font-size: 0.72rem; color: #718096; margin-bottom: 0.2rem; }
+.decomp-val { font-size: 1.3rem; font-weight: 800; font-variant-numeric: tabular-nums; color: #e2e8f0; }
+.decomp-val.hot { color: #f6ad55; }
+.factor-verdict {
+  margin-top: 1rem; padding: 0.75rem 1rem; background: #1a2230; border-left: 3px solid #63b3ed;
+  border-radius: 6px; font-size: 0.84rem; color: #cbd5e0; line-height: 1.6;
+}
+
+/* 目前建議區 */
+.rec-section .strat-desc { line-height: 1.7; }
+.buy-hint { color: #68d391; }
+.hold-hint { color: #a0aec0; }
+.rec-controls {
+  display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;
+  margin: 0.5rem 0 0.85rem;
+}
+.fresh-toggle {
+  display: flex; align-items: center; gap: 0.4rem;
+  font-size: 0.82rem; color: #a0aec0; cursor: pointer; user-select: none;
+}
+.fresh-toggle input { cursor: pointer; }
+.rec-count { font-size: 0.82rem; color: #718096; }
 
 /* 主要策略選擇器 */
 .featured-bar {

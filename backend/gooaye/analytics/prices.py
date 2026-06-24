@@ -38,15 +38,18 @@ class Series:
 
 
 class PriceBook:
-    """所有標的的股價集合，外加依市場對應的基準序列。"""
+    """所有標的的股價集合，外加依市場對應的基準序列與具名基準序列。"""
 
     def __init__(
         self,
         by_stock: dict[int, Series],
         benchmark_by_market: dict[str, Series],
+        named_benchmarks: dict[str, Series] | None = None,
     ) -> None:
         self.by_stock = by_stock
         self.benchmark_by_market = benchmark_by_market
+        # 具名基準（供因子拆解/嚴格對標用）：SPY=大盤、QQQ=科技、SOXX=費半、0050=台股大盤
+        self.named_benchmarks = named_benchmarks or {}
 
     def series(self, stock_id: int) -> Series | None:
         return self.by_stock.get(stock_id)
@@ -54,6 +57,10 @@ class PriceBook:
     def benchmark(self, market: str) -> Series | None:
         # TW→0050、US→SPY、其他→SPY（fallback）
         return self.benchmark_by_market.get(market) or self.benchmark_by_market.get("US")
+
+    def bench(self, ticker: str) -> Series | None:
+        """以代號取得具名基準序列（如 SPY/QQQ/SOXX/0050）。"""
+        return self.named_benchmarks.get(ticker)
 
 
 def _fetch_all_prices(client: Client) -> dict[int, Series]:
@@ -91,21 +98,23 @@ def load_price_book(client: Client) -> PriceBook:
     """載入全部股價，並建立市場→基準序列對應。"""
     by_stock = _fetch_all_prices(client)
 
-    # 找基準標的的 stock_id（0050 / SPY）
+    # 找基準標的的 stock_id（市場對應 0050/SPY + 具名 QQQ/SOXX 供因子拆解）
     bm_rows = (
         client.table("stocks")
         .select("id,ticker,market")
-        .in_("ticker", ["0050", "SPY"])
+        .in_("ticker", ["0050", "SPY", "QQQ", "SOXX"])
         .execute()
         .data
     )
     benchmark_by_market: dict[str, Series] = {}
+    named_benchmarks: dict[str, Series] = {}
     for b in bm_rows:
         s = by_stock.get(b["id"])
         if not s:
             continue
+        named_benchmarks[b["ticker"]] = s
         if b["ticker"] == "0050":
             benchmark_by_market["TW"] = s
         elif b["ticker"] == "SPY":
             benchmark_by_market["US"] = s
-    return PriceBook(by_stock, benchmark_by_market)
+    return PriceBook(by_stock, benchmark_by_market, named_benchmarks)
