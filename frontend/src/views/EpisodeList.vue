@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
-import { supabase } from '@/lib/supabase'
+import { supabase, fetchAllPaged } from '@/lib/supabase'
 import { useQuerySync } from '@/lib/useQuerySync'
 import type { Episode, Direction } from '@/lib/types'
 
@@ -12,24 +12,23 @@ const EP_COLUMNS = 'id, ep_no, title, source_url, published_at, summary, topics,
 const DIR_ORDER: Record<Direction, number> = { 看多: 0, 中性: 1, 看空: 2 }
 const PAGE_SIZE = 100
 
-/** 分頁撈 mentions（PostgREST 單次上限 1000 列，mentions 表已超過，需分頁）。
+/** 撈 mentions（PostgREST 單次上限 1000 列，mentions 表已超過，需分頁）。
  *  傳 episodeIds 時只查這些集數（單頁用，通常一次就夠）；不傳則撈全表（搜尋用）。 */
 async function fetchMentionsMap(episodeIds?: number[]): Promise<Record<number, Chip[]>> {
+  const rows = await fetchAllPaged<{ episode_id: number; name_raw: string; direction: Direction }>(
+    (offset, limit) => {
+      let query = supabase
+        .from('mentions')
+        .select('episode_id, name_raw, direction')
+        .order('id', { ascending: true })
+        .range(offset, offset + limit - 1)
+      if (episodeIds) query = query.in('episode_id', episodeIds)
+      return query
+    },
+  )
   const map: Record<number, Chip[]> = {}
-  const size = 1000
-  for (let page = 0; ; page++) {
-    let query = supabase
-      .from('mentions')
-      .select('episode_id, name_raw, direction')
-      .order('id', { ascending: true })
-      .range(page * size, page * size + size - 1)
-    if (episodeIds) query = query.in('episode_id', episodeIds)
-    const { data } = await query
-    const rows = data ?? []
-    for (const m of rows) {
-      ;(map[m.episode_id] ??= []).push({ name: m.name_raw, direction: m.direction })
-    }
-    if (rows.length < size) break
+  for (const m of rows) {
+    ;(map[m.episode_id] ??= []).push({ name: m.name_raw, direction: m.direction })
   }
   for (const id in map) {
     map[id].sort((a, b) => DIR_ORDER[a.direction] - DIR_ORDER[b.direction])

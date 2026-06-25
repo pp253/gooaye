@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { supabase, fetchAllPaged } from './supabase'
 import type { Mention, Stock, StockPerformance } from './types'
 import {
   computeSignal,
@@ -15,25 +15,22 @@ export interface StockRow extends Stock {
   recent: number[] // 近約 30 天日收盤（舊→新），給迷你走勢圖用
 }
 
-/** 分頁撈出 cutoff 之後的所有股價（PostgREST 單次上限 1000，需分頁）。 */
+/** 撈出 cutoff 之後的所有股價（PostgREST 單次上限 1000，需分頁）。 */
 async function fetchRecentPrices(cutoff: string): Promise<Map<number, number[]>> {
-  const map = new Map<number, number[]>()
-  const size = 1000
-  for (let page = 0; ; page++) {
-    const { data } = await supabase
+  const rows = await fetchAllPaged<{ stock_id: number; close: number }>((offset, limit) =>
+    supabase
       .from('prices')
       .select('stock_id, date, close')
       .gte('date', cutoff)
       .order('stock_id')
       .order('date')
-      .range(page * size, page * size + size - 1)
-    const rows = data ?? []
-    for (const r of rows) {
-      const arr = map.get(r.stock_id) ?? []
-      arr.push(r.close as number)
-      map.set(r.stock_id, arr)
-    }
-    if (rows.length < size) break
+      .range(offset, offset + limit - 1),
+  )
+  const map = new Map<number, number[]>()
+  for (const r of rows) {
+    const arr = map.get(r.stock_id) ?? []
+    arr.push(r.close)
+    map.set(r.stock_id, arr)
   }
   return map
 }

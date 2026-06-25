@@ -11,7 +11,7 @@ import {
   type ISeriesMarkersPluginApi,
   type Time,
 } from 'lightweight-charts'
-import { supabase } from '@/lib/supabase'
+import { supabase, fetchAllPaged } from '@/lib/supabase'
 import type { PricePoint } from '@/lib/types'
 import { DIRECTION_COLOR as dirColor, type MentionWithTime } from '@/lib/signal'
 import MentionTip from '@/components/MentionTip.vue'
@@ -158,20 +158,14 @@ function applyData() {
 async function load() {
   loading.value = true
   // PostgREST 單次上限 1000 列；5 年股價 >1000 筆，需分頁抓全量
-  const PAGE = 1000
-  const all: PricePoint[] = []
-  for (let from = 0; ; from += PAGE) {
-    const { data } = await supabase
+  prices.value = await fetchAllPaged<PricePoint>((offset, limit) =>
+    supabase
       .from('prices')
       .select('date, close')
       .eq('stock_id', props.stockId)
       .order('date')
-      .range(from, from + PAGE - 1)
-    if (!data || data.length === 0) break
-    all.push(...(data as PricePoint[]))
-    if (data.length < PAGE) break
-  }
-  prices.value = all
+      .range(offset, offset + limit - 1),
+  )
   loading.value = false
   await nextTick()
   if (!chart && container.value) buildChart()
