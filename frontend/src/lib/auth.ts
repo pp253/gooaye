@@ -4,16 +4,25 @@ import { supabase } from './supabase'
 
 export const session = ref<Session | null>(null)
 export const allowed = ref<boolean | null>(null) // null=檢查中, true=白名單, false=未登入或無權限
+export const isAdmin = ref(false) // 是否為 ADMIN（只有 pp.pp253@gmail.com 預設為 ADMIN）
 export const authReady = ref(false)
 
-/** 呼叫 DB 的 is_allowed()，判斷目前登入者是否在白名單 */
+/** 呼叫 DB 的 is_allowed() / is_admin()，判斷目前登入者的權限 */
 async function refreshAllowed(): Promise<void> {
   if (!session.value) {
     allowed.value = false
+    isAdmin.value = false
     return
   }
   const { data, error } = await supabase.rpc('is_allowed')
   allowed.value = !error && data === true
+
+  if (allowed.value) {
+    const { data: adminData, error: adminError } = await supabase.rpc('is_admin')
+    isAdmin.value = !adminError && adminData === true
+  } else {
+    isAdmin.value = false
+  }
 }
 
 

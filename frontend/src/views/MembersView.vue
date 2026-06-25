@@ -6,6 +6,7 @@ import { session } from '@/lib/auth'
 interface AllowedEmail {
   email: string
   note: string | null
+  role: 'admin' | 'user'
   created_at: string
 }
 
@@ -28,7 +29,7 @@ async function loadMembers() {
   loading.value = true
   const { data } = await supabase
     .from('allowed_emails')
-    .select('email, note, created_at')
+    .select('email, note, role, created_at')
     .order('created_at', { ascending: false })
   members.value = data ?? []
   loading.value = false
@@ -94,6 +95,7 @@ onMounted(loadMembers)
         <thead>
           <tr>
             <th>Email</th>
+            <th>角色</th>
             <th>備註</th>
             <th>加入時間</th>
             <th></th>
@@ -102,6 +104,7 @@ onMounted(loadMembers)
         <tbody>
           <tr v-for="m in members" :key="m.email">
             <td>{{ m.email }}</td>
+            <td><span class="role-badge" :class="m.role">{{ m.role === 'admin' ? 'ADMIN' : 'USER' }}</span></td>
             <td class="note">{{ m.note }}</td>
             <td class="time">{{ fmtTime(m.created_at) }}</td>
             <td>
@@ -155,6 +158,13 @@ tr:hover td { background: #232a3b; }
 
 .note { color: #a0aec0; font-size: 0.84rem; }
 .time { color: #a0aec0; font-variant-numeric: tabular-nums; font-size: 0.84rem; }
+
+.role-badge {
+  display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px;
+  font-size: 0.74rem; font-weight: 700; letter-spacing: 0.03em;
+}
+.role-badge.admin { background: #c0530033; color: #f6ad55; }
+.role-badge.user { background: #2d374833; color: #a0aec0; }
 
 .revoke {
   background: none; border: 1px solid #4a5568; color: #fc8181;

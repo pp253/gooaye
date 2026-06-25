@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { initAuth, authReady, session, allowed, signOut } from '@/lib/auth'
+import { initAuth, authReady, session, allowed, isAdmin, signOut } from '@/lib/auth'
 import LoginView from '@/views/LoginView.vue'
 
 onMounted(initAuth)
@@ -28,8 +28,8 @@ function closeMenu() { menuOpen.value = false }
         <RouterLink to="/stocks">個股追蹤</RouterLink>
         <RouterLink to="/backtest">回測</RouterLink>
         <RouterLink to="/episodes">集數列表</RouterLink>
-        <RouterLink to="/login-logs">登入紀錄</RouterLink>
-        <RouterLink to="/members">成員管理</RouterLink>
+        <RouterLink v-if="isAdmin" to="/login-logs">登入紀錄</RouterLink>
+        <RouterLink v-if="isAdmin" to="/members">成員管理</RouterLink>
         <button class="logout" @click="signOut">登出</button>
       </div>
 
@@ -46,8 +46,8 @@ function closeMenu() { menuOpen.value = false }
       <RouterLink to="/stocks" class="mm-link">個股追蹤</RouterLink>
       <RouterLink to="/backtest" class="mm-link">回測</RouterLink>
       <RouterLink to="/episodes" class="mm-link">集數列表</RouterLink>
-      <RouterLink to="/login-logs" class="mm-link">登入紀錄</RouterLink>
-      <RouterLink to="/members" class="mm-link">成員管理</RouterLink>
+      <RouterLink v-if="isAdmin" to="/login-logs" class="mm-link">登入紀錄</RouterLink>
+      <RouterLink v-if="isAdmin" to="/members" class="mm-link">成員管理</RouterLink>
       <button class="mm-link mm-logout" @click="signOut">登出</button>
     </div>
 
