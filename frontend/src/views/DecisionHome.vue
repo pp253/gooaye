@@ -5,18 +5,13 @@ import { loadStockSignals, type StockRow } from '@/lib/useData'
 import { TRADEABLE_TYPES } from '@/lib/types'
 import { pct, retColor } from '@/lib/format'
 import { useQuerySync } from '@/lib/useQuerySync'
+import { DIRECTION_COLOR as dirColor } from '@/lib/signal'
 import FreshnessLabel from '@/components/FreshnessLabel.vue'
 import ScoreLabel from '@/components/ScoreLabel.vue'
 
 const rows = ref<StockRow[]>([])
 const referenceDate = ref('')
 const loading = ref(true)
-
-const dirColor: Record<string, string> = {
-  看多: '#68d391',
-  看空: '#fc8181',
-  中性: '#90cdf4',
-}
 
 const assetView = ref<'tradeable' | 'theme' | 'all'>('tradeable')
 const market = ref<'ALL' | 'TW' | 'US'>('ALL')
@@ -270,7 +265,7 @@ onMounted(async () => {
 
 <style scoped>
 .page-header { display: flex; align-items: baseline; gap: 1rem; margin-bottom: 1.5rem; }
-.page-title { font-size: 1.4rem; font-weight: 700; color: #63b3ed; }
+.page-title { font-size: 1.4rem; font-weight: 700; color: transparent; background: linear-gradient(90deg, #63b3ed, #9ae6b4); -webkit-background-clip: text; background-clip: text; }
 .ref-date { font-size: 0.78rem; color: #718096; }
 .loading { color: #718096; }
 .empty { color: #718096; font-size: 0.85rem; }
@@ -286,7 +281,7 @@ onMounted(async () => {
   transition: background 0.15s, color 0.15s;
 }
 .chip:hover { background: #374151; }
-.chip.active { background: #63b3ed; color: #1a1f2e; font-weight: 600; }
+.chip.active { background: linear-gradient(135deg, #63b3ed, #4299e1); color: #1a1f2e; font-weight: 600; box-shadow: 0 4px 12px -4px rgba(99, 179, 237, 0.5); }
 
 .board { margin-bottom: 2.25rem; }
 .board-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 0.2rem; }
@@ -295,14 +290,18 @@ onMounted(async () => {
 .card-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem; }
 
 .sig-card {
-  background: #1a1f2e; border: 1px solid #2d3748; border-radius: 8px;
+  background: #1a1f2e; border: 1px solid #2d3748; border-radius: 10px;
   padding: 0.8rem 0.9rem; text-decoration: none; color: inherit;
   display: flex; flex-direction: column; gap: 0.45rem;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.15s, background 0.15s, transform 0.15s, box-shadow 0.15s;
 }
-.sig-card:hover { border-color: #63b3ed; background: #1e2535; }
+.sig-card:hover {
+  border-color: #63b3ed; background: #1e2535;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px -12px rgba(99, 179, 237, 0.35);
+}
 .new-card { border-color: #2d4a3e; }
-.new-card:hover { border-color: #9ae6b4; }
+.new-card:hover { border-color: #9ae6b4; box-shadow: 0 10px 24px -12px rgba(154, 230, 180, 0.35); }
 
 /* ── Table view ────────────────────────────────── */
 .d-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }

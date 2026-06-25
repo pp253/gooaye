@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { loadStockSignals, loadSparklines, type StockRow } from '@/lib/useData'
-import { HALF_LIFE_DAYS } from '@/lib/signal'
+import { HALF_LIFE_DAYS, DIRECTION_COLOR as dirColor } from '@/lib/signal'
 import { TRADEABLE_TYPES } from '@/lib/types'
 import { pct, retColor } from '@/lib/format'
 import { useQuerySync } from '@/lib/useQuerySync'
@@ -31,12 +31,6 @@ useQuerySync({
   sort: { ref: sortBy, default: 'score' },
   q: { ref: search, default: '' },
 })
-
-const dirColor: Record<string, string> = {
-  看多: '#68d391',
-  看空: '#fc8181',
-  中性: '#90cdf4',
-}
 
 const filtered = computed(() => {
   let list = rows.value.slice()
@@ -196,7 +190,7 @@ onMounted(async () => {
 
 <style scoped>
 .page-header { display: flex; align-items: baseline; gap: 1rem; margin-bottom: 1.25rem; }
-.page-title { font-size: 1.4rem; font-weight: 700; color: #63b3ed; }
+.page-title { font-size: 1.4rem; font-weight: 700; color: transparent; background: linear-gradient(90deg, #63b3ed, #9ae6b4); -webkit-background-clip: text; background-clip: text; }
 .ref-date { font-size: 0.78rem; color: #718096; }
 .loading { color: #718096; }
 
@@ -218,9 +212,12 @@ onMounted(async () => {
   transition: background 0.15s, color 0.15s;
 }
 .chip:hover { background: #374151; }
-.chip.active { background: #63b3ed; color: #1a1f2e; font-weight: 600; }
+.chip.active { background: linear-gradient(135deg, #63b3ed, #4299e1); color: #1a1f2e; font-weight: 600; box-shadow: 0 4px 12px -4px rgba(99, 179, 237, 0.5); }
 
-.table-wrap { overflow-x: auto; }
+.table-wrap {
+  overflow-x: auto; border-radius: 12px; border: 1px solid #232b3a;
+  box-shadow: 0 12px 32px -16px rgba(0, 0, 0, 0.5);
+}
 .stock-table { width: 100%; border-collapse: collapse; min-width: 920px; }
 .stock-table th {
   text-align: left; padding: 0.6rem 0.7rem; background: #1a1f2e; color: #718096;
@@ -230,8 +227,8 @@ onMounted(async () => {
 .th-info { display: inline-flex; align-items: center; gap: 0.15rem; }
 .info-list { margin: 0.4rem 0; padding-left: 1.1rem; }
 .info-list li { margin-bottom: 0.2rem; }
-.stock-table td { padding: 0.6rem 0.7rem; border-bottom: 1px solid #1e2535; font-size: 0.86rem; vertical-align: middle; white-space: nowrap; }
-.stock-table tr:hover td { background: #1a1f2e; }
+.stock-table td { padding: 0.6rem 0.7rem; border-bottom: 1px solid #1e2535; font-size: 0.86rem; vertical-align: middle; white-space: nowrap; transition: background 0.1s; }
+.stock-table tr:hover td { background: #1e2535; }
 
 .stock-cell { display: flex; align-items: center; gap: 0.5rem; text-decoration: none; color: inherit; }
 .ticker { font-family: monospace; font-weight: 700; color: #90cdf4; }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { supabase } from '@/lib/supabase'
 import { useQuerySync } from '@/lib/useQuerySync'
@@ -7,11 +7,37 @@ import type { Episode, Direction } from '@/lib/types'
 
 interface Chip { name: string; direction: Direction }
 
-const episodes = ref<Episode[]>([])
-const mentionsByEp = ref<Record<number, Chip[]>>({})
-const loading = ref(true)
-const search = ref('')
+const EP_COLUMNS = 'id, ep_no, title, source_url, published_at, summary, topics, created_at'
+// 看多 → 中性 → 看空 的排序權重
+const DIR_ORDER: Record<Direction, number> = { 看多: 0, 中性: 1, 看空: 2 }
 const PAGE_SIZE = 100
+
+/** 分頁撈 mentions（PostgREST 單次上限 1000 列，mentions 表已超過，需分頁）。
+ *  傳 episodeIds 時只查這些集數（單頁用，通常一次就夠）；不傳則撈全表（搜尋用）。 */
+async function fetchMentionsMap(episodeIds?: number[]): Promise<Record<number, Chip[]>> {
+  const map: Record<number, Chip[]> = {}
+  const size = 1000
+  for (let page = 0; ; page++) {
+    let query = supabase
+      .from('mentions')
+      .select('episode_id, name_raw, direction')
+      .order('id', { ascending: true })
+      .range(page * size, page * size + size - 1)
+    if (episodeIds) query = query.in('episode_id', episodeIds)
+    const { data } = await query
+    const rows = data ?? []
+    for (const m of rows) {
+      ;(map[m.episode_id] ??= []).push({ name: m.name_raw, direction: m.direction })
+    }
+    if (rows.length < size) break
+  }
+  for (const id in map) {
+    map[id].sort((a, b) => DIR_ORDER[a.direction] - DIR_ORDER[b.direction])
+  }
+  return map
+}
+
+const search = ref('')
 // ''＝第一頁（最新一百集）；否則為 "低-高"，如 "601-700"
 const pageKey = ref('')
 
@@ -22,24 +48,16 @@ useQuerySync({
 
 const isSearching = computed(() => search.value.trim().length > 0)
 
-const filteredEpisodes = computed(() => {
-  const q = search.value.trim().toLowerCase()
-  if (!q) return episodes.value
-  return episodes.value.filter((ep) => {
-    if (String(ep.ep_no).includes(q)) return true
-    if (ep.title?.toLowerCase().includes(q)) return true
-    if (ep.topics.some((t) => t.toLowerCase().includes(q))) return true
-    if (ep.summary.some((s) => s.toLowerCase().includes(q))) return true
-    if (mentionsByEp.value[ep.id]?.some((c) => c.name.toLowerCase().includes(q))) return true
-    return false
-  })
-})
+// ── 單頁載入（預設路徑：只抓目前頁的 100 集 + 對應 mentions）──
+const maxEpNo = ref(0)
+const pageEpisodes = ref<Episode[]>([])
+const pageMentions = ref<Record<number, Chip[]>>({})
+const pageLoading = ref(true)
 
 // 依 ep_no 切成每 100 集一頁，邊界對齊整百（700-601、600-501…），與實際缺集無關
 const pages = computed(() => {
-  if (episodes.value.length === 0) return []
-  const maxEp = Math.max(...episodes.value.map((e) => e.ep_no))
-  const top = Math.ceil(maxEp / PAGE_SIZE) * PAGE_SIZE
+  if (maxEpNo.value === 0) return []
+  const top = Math.ceil(maxEpNo.value / PAGE_SIZE) * PAGE_SIZE
   const list: { key: string; label: string; low: number; high: number }[] = []
   for (let high = top; high > 0; high -= PAGE_SIZE) {
     const low = Math.max(high - PAGE_SIZE + 1, 1)
@@ -50,35 +68,71 @@ const pages = computed(() => {
 
 const currentPage = computed(() => pages.value.find((p) => p.key === pageKey.value) ?? pages.value[0])
 
-const pagedEpisodes = computed(() => {
-  if (isSearching.value || !currentPage.value) return filteredEpisodes.value
+async function loadPage() {
+  if (!currentPage.value) {
+    pageEpisodes.value = []
+    pageMentions.value = {}
+    pageLoading.value = false
+    return
+  }
+  pageLoading.value = true
   const { low, high } = currentPage.value
-  return filteredEpisodes.value.filter((ep) => ep.ep_no >= low && ep.ep_no <= high)
+  const { data } = await supabase
+    .from('episodes')
+    .select(EP_COLUMNS)
+    .gte('ep_no', low)
+    .lte('ep_no', high)
+    .order('ep_no', { ascending: false })
+  const eps = (data ?? []) as Episode[]
+  pageEpisodes.value = eps
+  pageMentions.value = await fetchMentionsMap(eps.map((e) => e.id))
+  pageLoading.value = false
+}
+
+// ── 搜尋路徑：使用者開始搜尋時才懶載入全量資料（跨全部集數比對），只載一次、之後快取 ──
+const allEpisodes = ref<Episode[] | null>(null)
+const allMentions = ref<Record<number, Chip[]> | null>(null)
+const searchLoading = ref(false)
+
+async function ensureFullDataLoaded() {
+  if (allEpisodes.value) return
+  searchLoading.value = true
+  const { data } = await supabase.from('episodes').select(EP_COLUMNS).order('ep_no', { ascending: false })
+  allEpisodes.value = (data ?? []) as Episode[]
+  allMentions.value = await fetchMentionsMap()
+  searchLoading.value = false
+}
+
+watch(isSearching, (v) => {
+  if (v) ensureFullDataLoaded()
+})
+watch(pageKey, () => {
+  if (!isSearching.value) loadPage()
 })
 
-// 看多 → 中性 → 看空 的排序權重
-const DIR_ORDER: Record<Direction, number> = { 看多: 0, 中性: 1, 看空: 2 }
+// ── 顯示用：依目前是否搜尋，切換資料來源 ──
+const busy = computed(() => (isSearching.value ? searchLoading.value : pageLoading.value))
+const mentionsByEp = computed(() => (isSearching.value ? allMentions.value ?? {} : pageMentions.value))
+
+const displayEpisodes = computed(() => {
+  if (!isSearching.value) return pageEpisodes.value
+  const q = search.value.trim().toLowerCase()
+  const eps = allEpisodes.value ?? []
+  const mentions = allMentions.value ?? {}
+  return eps.filter((ep) => {
+    if (String(ep.ep_no).includes(q)) return true
+    if (ep.title?.toLowerCase().includes(q)) return true
+    if (ep.topics.some((t) => t.toLowerCase().includes(q))) return true
+    if (ep.summary.some((s) => s.toLowerCase().includes(q))) return true
+    if (mentions[ep.id]?.some((c) => c.name.toLowerCase().includes(q))) return true
+    return false
+  })
+})
 
 onMounted(async () => {
-  const [epRes, mRes] = await Promise.all([
-    // 明列欄位，排除大欄位 transcript/site_desc（列表不需要，避免下載全部逐字稿）
-    supabase
-      .from('episodes')
-      .select('id, ep_no, title, source_url, published_at, summary, topics, created_at')
-      .order('ep_no', { ascending: false }),
-    supabase.from('mentions').select('episode_id, name_raw, direction'),
-  ])
-  episodes.value = (epRes.data ?? []) as Episode[]
-
-  const map: Record<number, Chip[]> = {}
-  for (const m of mRes.data ?? []) {
-    ;(map[m.episode_id] ??= []).push({ name: m.name_raw, direction: m.direction })
-  }
-  for (const id in map) {
-    map[id].sort((a, b) => DIR_ORDER[a.direction] - DIR_ORDER[b.direction])
-  }
-  mentionsByEp.value = map
-  loading.value = false
+  const { data } = await supabase.from('episodes').select('ep_no').order('ep_no', { ascending: false }).limit(1)
+  maxEpNo.value = data?.[0]?.ep_no ?? 0
+  await loadPage()
 })
 </script>
 
@@ -104,11 +158,11 @@ onMounted(async () => {
     </div>
     <p v-else-if="isSearching" class="search-hint">搜尋結果（跨全部集數，不分頁）</p>
 
-    <p v-if="loading" class="loading">載入中 …</p>
-    <p v-else-if="pagedEpisodes.length === 0" class="loading">沒有符合條件的集數</p>
+    <p v-if="busy" class="loading">載入中 …</p>
+    <p v-else-if="displayEpisodes.length === 0" class="loading">沒有符合條件的集數</p>
     <div v-else class="episode-grid">
       <RouterLink
-        v-for="ep in pagedEpisodes"
+        v-for="ep in displayEpisodes"
         :key="ep.id"
         :to="`/episodes/${ep.ep_no}`"
         class="ep-card"
@@ -139,7 +193,7 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.page-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem; color: #63b3ed; }
+.page-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem; color: transparent; background: linear-gradient(90deg, #63b3ed, #9ae6b4); -webkit-background-clip: text; background-clip: text; }
 .loading { color: #718096; }
 
 .search-box {
@@ -157,7 +211,7 @@ onMounted(async () => {
   transition: background 0.15s, color 0.15s;
 }
 .chip:hover { background: #374151; }
-.chip.active { background: #63b3ed; color: #1a1f2e; font-weight: 600; }
+.chip.active { background: linear-gradient(135deg, #63b3ed, #4299e1); color: #1a1f2e; font-weight: 600; box-shadow: 0 4px 12px -4px rgba(99, 179, 237, 0.5); }
 .search-hint { color: #718096; font-size: 0.82rem; margin-bottom: 1.25rem; }
 
 .episode-grid {
@@ -169,16 +223,20 @@ onMounted(async () => {
 .ep-card {
   background: #1a1f2e;
   border: 1px solid #2d3748;
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 1rem 1.25rem;
   text-decoration: none;
   color: inherit;
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.15s, background 0.15s, transform 0.15s, box-shadow 0.15s;
 }
-.ep-card:hover { border-color: #63b3ed; background: #1e2535; }
+.ep-card:hover {
+  border-color: #63b3ed; background: #1e2535;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px -12px rgba(99, 179, 237, 0.3);
+}
 
 .ep-header { display: flex; align-items: baseline; gap: 0.6rem; }
 .ep-no { font-weight: 700; color: #63b3ed; font-size: 1rem; white-space: nowrap; }

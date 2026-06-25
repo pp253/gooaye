@@ -20,7 +20,7 @@ function closeMenu() { menuOpen.value = false }
   <!-- 已登入且在白名單 → 完整 app -->
   <div v-else-if="session && allowed" class="app">
     <nav class="nav">
-      <span class="nav-brand">股癌追蹤器</span>
+      <RouterLink to="/" class="nav-brand" @click="closeMenu">股癌追蹤器</RouterLink>
 
       <!-- 桌面版連結 -->
       <div class="nav-links">
@@ -65,7 +65,7 @@ function closeMenu() { menuOpen.value = false }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #0f1117;
+  background: #0f1117 radial-gradient(ellipse 1200px 600px at 50% -10%, rgba(43, 108, 176, 0.12), transparent 60%);
   color: #e2e8f0;
   min-height: 100vh;
 }
@@ -78,39 +78,50 @@ body {
   align-items: center;
   padding: 0 1.25rem;
   height: 52px;
-  background: #1a1f2e;
+  background: rgba(26, 31, 46, 0.78);
+  backdrop-filter: blur(10px);
   border-bottom: 1px solid #2d3748;
   position: sticky; top: 0; z-index: 20;
 }
 
 .nav-brand {
-  font-weight: 700; font-size: 1.05rem; color: #63b3ed;
+  font-weight: 800; font-size: 1.08rem;
   margin-right: auto; white-space: nowrap;
+  background: linear-gradient(90deg, #63b3ed, #9ae6b4);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  text-decoration: none; cursor: pointer;
+  transition: opacity 0.15s;
 }
+.nav-brand:hover { opacity: 0.85; }
 
 .nav-links {
   display: flex; align-items: center; gap: 0.25rem;
 }
 
-.nav a {
+.nav-links a {
+  position: relative;
   color: #a0aec0;
   text-decoration: none;
   font-size: 0.9rem;
   padding: 0.3rem 0.6rem;
-  border-radius: 4px;
-  transition: color 0.15s, background 0.15s;
+  border-radius: 6px;
+  transition: color 0.15s ease, background 0.15s ease;
   white-space: nowrap;
 }
-.nav a:hover,
-.nav a.router-link-active:not(.home),
-.nav a.home.router-link-exact-active { color: #e2e8f0; background: #2d3748; }
+.nav-links a:hover { color: #e2e8f0; background: rgba(45, 55, 72, 0.7); }
+.nav-links a.router-link-active:not(.home),
+.nav-links a.home.router-link-exact-active {
+  color: #e2e8f0;
+  background: linear-gradient(135deg, rgba(99, 179, 237, 0.22), rgba(154, 230, 180, 0.12));
+  box-shadow: inset 0 0 0 1px rgba(99, 179, 237, 0.3);
+}
 
 .logout {
-  margin-left: 0.25rem; background: #2d3748; color: #a0aec0; border: none;
-  border-radius: 4px; padding: 0.3rem 0.7rem; font-size: 0.82rem; cursor: pointer;
-  white-space: nowrap;
+  margin-left: 0.4rem; background: #2d3748; color: #a0aec0; border: none;
+  border-radius: 6px; padding: 0.32rem 0.75rem; font-size: 0.82rem; cursor: pointer;
+  white-space: nowrap; transition: background 0.15s, color 0.15s;
 }
-.logout:hover { background: #374151; color: #e2e8f0; }
+.logout:hover { background: #374151; color: #fc8181; }
 
 /* ── 漢堡按鈕（手機才顯示） ────────────────────── */
 .hamburger {

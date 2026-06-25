@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { loadSingleStockDetail, type StockRow } from '@/lib/useData'
-import { FRESHNESS_META, relativeTime } from '@/lib/signal'
+import { FRESHNESS_META, relativeTime, DIRECTION_COLOR as dirColor } from '@/lib/signal'
 import { pct, rate, retColor } from '@/lib/format'
 import { useQuerySync } from '@/lib/useQuerySync'
 import TrajectoryChart from '@/components/TrajectoryChart.vue'
@@ -34,12 +34,6 @@ const fromDate = computed<string | null>(() => {
 // 兩張圖共用的 x 時間軸範圍；「全部」時傳 null，讓各圖 fitContent() 顯示全部資料
 const axisEnd = computed(() => new Date().toISOString().slice(0, 10))
 const axisStart = computed<string | null>(() => fromDate.value)
-
-const dirColor: Record<string, string> = {
-  看多: '#68d391',
-  看空: '#fc8181',
-  中性: '#90cdf4',
-}
 
 // 時間軸：新→舊
 const timeline = computed(() =>

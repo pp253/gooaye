@@ -7,6 +7,13 @@ export const DIRECTION_WEIGHT: Record<Direction, number> = {
   看空: -1,
 }
 
+/** 方向顯示色，跨頁面統一（個股列表、決策面板、走勢圖 marker/tooltip…） */
+export const DIRECTION_COLOR: Record<Direction, string> = {
+  看多: '#68d391',
+  看空: '#fc8181',
+  中性: '#90cdf4',
+}
+
 /** 訊號衰減半衰期（天）。30 天前的觀點權重剩一半。 */
 export const HALF_LIFE_DAYS = 30
 

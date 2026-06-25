@@ -810,7 +810,7 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
 
 <style scoped>
 .page-header { display: flex; align-items: baseline; gap: 1rem; margin-bottom: 1rem; }
-.page-title { font-size: 1.6rem; font-weight: 800; color: #63b3ed; }
+.page-title { font-size: 1.6rem; font-weight: 800; color: transparent; background: linear-gradient(90deg, #63b3ed, #9ae6b4); -webkit-background-clip: text; background-clip: text; }
 .ref-date { font-size: 0.8rem; color: #718096; }
 .loading { color: #718096; padding: 2rem 0; text-align: center; }
 

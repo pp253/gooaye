@@ -13,7 +13,7 @@ import {
 } from 'lightweight-charts'
 import { supabase } from '@/lib/supabase'
 import type { PricePoint } from '@/lib/types'
-import type { MentionWithTime } from '@/lib/signal'
+import { DIRECTION_COLOR as dirColor, type MentionWithTime } from '@/lib/signal'
 import MentionTip from '@/components/MentionTip.vue'
 
 const props = defineProps<{
@@ -26,8 +26,6 @@ const props = defineProps<{
 
 const prices = ref<PricePoint[]>([])
 const loading = ref(true)
-
-const dirColor: Record<string, string> = { 看多: '#68d391', 看空: '#fc8181', 中性: '#90cdf4' }
 
 // 套用時間範圍：fromDate 為使用者選的範圍；「全部」時退回 axisStart 當預設 lookback
 const effectiveFrom = computed(() => props.fromDate ?? props.axisStart ?? null)

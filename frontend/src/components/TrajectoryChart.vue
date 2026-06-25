@@ -6,7 +6,7 @@ import { ScatterChart, LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
 import type { MentionWithTime } from '@/lib/signal'
-import { DIRECTION_WEIGHT, relativeTime } from '@/lib/signal'
+import { DIRECTION_WEIGHT, DIRECTION_COLOR as dirColor, relativeTime } from '@/lib/signal'
 
 use([CanvasRenderer, ScatterChart, LineChart, GridComponent, TooltipComponent])
 
@@ -17,12 +17,6 @@ const props = defineProps<{
   axisStart?: string | null // 與股價圖共用的 x 軸起點
   axisEnd?: string | null // 與股價圖共用的 x 軸終點
 }>()
-
-const dirColor: Record<string, string> = {
-  看多: '#68d391',
-  看空: '#fc8181',
-  中性: '#90cdf4',
-}
 
 // 套用時間範圍後依日期排序（舊→新）
 const sorted = computed(() => {

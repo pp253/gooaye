@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { supabase } from '@/lib/supabase'
+import { DIRECTION_COLOR as dirColor } from '@/lib/signal'
 import type { Episode, Mention } from '@/lib/types'
 
 const props = defineProps<{ ep: string }>()
@@ -15,12 +16,6 @@ const transcriptLoading = ref(false)
 // 初始查詢明列欄位、排除大欄位 transcript（只留小的 transcript_chars 顯示字數）
 const EP_COLS =
   'id, ep_no, title, source_url, published_at, summary, topics, created_at, transcript_chars, site_desc'
-
-const dirColor: Record<string, string> = {
-  '看多': '#68d391',
-  '看空': '#fc8181',
-  '中性': '#90cdf4',
-}
 
 onMounted(async () => {
   const [epRes, mentionRes] = await Promise.all([
