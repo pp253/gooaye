@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { loadStockSignals, loadSparklines, type StockRow } from '@/lib/useData'
+import { loadSparklines, searchStockSignals, type StockRow } from '@/lib/useData'
 import { HALF_LIFE_DAYS, DIRECTION_COLOR as dirColor } from '@/lib/signal'
 import { TRADEABLE_TYPES } from '@/lib/types'
 import { pct, retColor } from '@/lib/format'
@@ -61,13 +61,25 @@ const filtered = computed(() => {
   return list
 })
 
-onMounted(async () => {
-  const res = await loadStockSignals()
+async function doSearch(q: string) {
+  loading.value = true
+  const res = await searchStockSignals(q)
   rows.value = res.stocks
   referenceDate.value = res.referenceDate
   loading.value = false
-  // 第二階段：非同步補 sparkline，不阻塞主表顯示
   loadSparklines(rows.value)
+}
+
+let debounceTimer: any = null
+watch(search, (newVal) => {
+  if (debounceTimer) clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(() => {
+    doSearch(newVal)
+  }, 300)
+})
+
+onMounted(async () => {
+  await doSearch(search.value)
 })
 </script>
 

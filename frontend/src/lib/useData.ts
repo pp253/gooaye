@@ -16,16 +16,21 @@ export interface StockRow extends Stock {
 }
 
 /** 撈出 cutoff 之後的所有股價（PostgREST 單次上限 1000，需分頁）。 */
-async function fetchRecentPrices(cutoff: string): Promise<Map<number, number[]>> {
-  const rows = await fetchAllPaged<{ stock_id: number; close: number }>((offset, limit) =>
-    supabase
+async function fetchRecentPrices(cutoff: string, stockIds?: number[]): Promise<Map<number, number[]>> {
+  const rows = await fetchAllPaged<{ stock_id: number; close: number }>((offset, limit) => {
+    let query = supabase
       .from('prices')
       .select('stock_id, date, close')
       .gte('date', cutoff)
       .order('stock_id')
       .order('date')
-      .range(offset, offset + limit - 1),
-  )
+      .range(offset, offset + limit - 1)
+      
+    if (stockIds && stockIds.length > 0) {
+      query = query.in('stock_id', stockIds)
+    }
+    return query
+  })
   const map = new Map<number, number[]>()
   for (const r of rows) {
     const arr = map.get(r.stock_id) ?? []
@@ -174,11 +179,102 @@ export async function loadStockSignals(): Promise<{
  * 傳入 rows ref 直接 mutate，讓 UI 漸進更新。
  */
 export async function loadSparklines(rows: StockRow[]): Promise<void> {
+  if (rows.length === 0) return
   const cutoff = new Date(Date.now() - 45 * 86_400_000).toISOString().slice(0, 10)
-  const recentByStock = await fetchRecentPrices(cutoff)
+  const stockIds = rows.map((r) => r.id)
+  const recentByStock = await fetchRecentPrices(cutoff, stockIds)
   for (const r of rows) {
     r.recent = recentByStock.get(r.id) ?? []
   }
-  // 同時更新快取
-  if (_cache) _cache.stocks = rows
+  // 同時更新快取中的 recent 資料，避免覆蓋/損壞完整快取列表
+  if (_cache) {
+    for (const r of rows) {
+      const cached = _cache.stocks.find((s) => s.id === r.id)
+      if (cached) {
+        cached.recent = r.recent
+      }
+    }
+  }
+}
+
+export async function searchStockSignals(q: string): Promise<{
+  stocks: StockRow[]
+  referenceDate: string
+}> {
+  const trimmed = q.trim()
+  if (!trimmed) {
+    return loadStockSignals()
+  }
+
+  // Build query for matching stocks
+  let stockQuery = supabase.from('stocks').select('*')
+  
+  // PostgREST OR query for ticker, name_zh, name_en, and array containment on aliases
+  stockQuery = stockQuery.or(
+    `ticker.ilike.%${trimmed}%,name_zh.ilike.%${trimmed}%,name_en.ilike.%${trimmed}%,aliases.cs.{"${trimmed}"}`
+  )
+
+  const [{ data: stockData }, { data: refData }] = await Promise.all([
+    stockQuery,
+    supabase.from('episodes').select('published_at').order('published_at', { ascending: false }).limit(1),
+  ])
+
+  const referenceDate =
+    (refData?.[0]?.published_at as string | undefined)?.slice(0, 10) ??
+    new Date().toISOString().slice(0, 10)
+
+  const stocks = (stockData ?? []) as Stock[]
+  if (stocks.length === 0) {
+    return { stocks: [], referenceDate }
+  }
+
+  const stockIds = stocks.map((s) => s.id)
+
+  const [{ data: mentionData }, { data: perfData }] = await Promise.all([
+    supabase
+      .from('mentions')
+      .select('*, episodes(ep_no, title, published_at)')
+      .in('stock_id', stockIds),
+    supabase.from('stock_performance').select('*').in('stock_id', stockIds),
+  ])
+
+  const perfByStock = new Map<number, StockPerformance>(
+    ((perfData ?? []) as StockPerformance[]).map((p) => [p.stock_id, p]),
+  )
+
+  const rawMentions = (mentionData ?? []) as (Mention & {
+    episodes: { ep_no: number; title: string; published_at: string | null }
+  })[]
+
+  const byStock = new Map<number, MentionWithTime[]>()
+  for (const m of rawMentions) {
+    const published = m.episodes?.published_at
+    if (!published || m.stock_id == null) continue
+    const daysAgo = daysBetween(published, referenceDate)
+    const withTime: MentionWithTime = {
+      ...m,
+      published_at: published,
+      days_ago: daysAgo,
+      freshness: freshness(daysAgo),
+    }
+    const arr = byStock.get(m.stock_id) ?? []
+    arr.push(withTime)
+    byStock.set(m.stock_id, arr)
+  }
+
+  const rows: StockRow[] = stocks
+    .map((s) => {
+      const mentions = byStock.get(s.id) ?? []
+      if (mentions.length === 0) return null
+      return {
+        ...s,
+        mentions,
+        signal: computeSignal(mentions, referenceDate),
+        performance: perfByStock.get(s.id) ?? null,
+        recent: [] as number[],
+      }
+    })
+    .filter((r): r is StockRow => r !== null)
+
+  return { stocks: rows, referenceDate }
 }
