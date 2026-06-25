@@ -11,8 +11,16 @@ const episodes = ref<Episode[]>([])
 const mentionsByEp = ref<Record<number, Chip[]>>({})
 const loading = ref(true)
 const search = ref('')
+const PAGE_SIZE = 100
+// ''＝第一頁（最新一百集）；否則為 "低-高"，如 "601-700"
+const pageKey = ref('')
 
-useQuerySync({ q: { ref: search, default: '' } })
+useQuerySync({
+  q: { ref: search, default: '' },
+  page: { ref: pageKey, default: '' },
+})
+
+const isSearching = computed(() => search.value.trim().length > 0)
 
 const filteredEpisodes = computed(() => {
   const q = search.value.trim().toLowerCase()
@@ -25,6 +33,27 @@ const filteredEpisodes = computed(() => {
     if (mentionsByEp.value[ep.id]?.some((c) => c.name.toLowerCase().includes(q))) return true
     return false
   })
+})
+
+// 依 ep_no 切成每 100 集一頁，邊界對齊整百（700-601、600-501…），與實際缺集無關
+const pages = computed(() => {
+  if (episodes.value.length === 0) return []
+  const maxEp = Math.max(...episodes.value.map((e) => e.ep_no))
+  const top = Math.ceil(maxEp / PAGE_SIZE) * PAGE_SIZE
+  const list: { key: string; label: string; low: number; high: number }[] = []
+  for (let high = top; high > 0; high -= PAGE_SIZE) {
+    const low = Math.max(high - PAGE_SIZE + 1, 1)
+    list.push({ key: `${low}-${high}`, label: `${high}-${low}`, low, high })
+  }
+  return list
+})
+
+const currentPage = computed(() => pages.value.find((p) => p.key === pageKey.value) ?? pages.value[0])
+
+const pagedEpisodes = computed(() => {
+  if (isSearching.value || !currentPage.value) return filteredEpisodes.value
+  const { low, high } = currentPage.value
+  return filteredEpisodes.value.filter((ep) => ep.ep_no >= low && ep.ep_no <= high)
 })
 
 // 看多 → 中性 → 看空 的排序權重
@@ -64,11 +93,22 @@ onMounted(async () => {
       placeholder="搜尋集數、標題、主題、提及個股…"
     />
 
+    <div v-if="!isSearching && pages.length > 1" class="pager">
+      <button
+        v-for="p in pages" :key="p.key"
+        :class="['chip', { active: p.key === currentPage?.key }]"
+        @click="pageKey = p.key"
+      >
+        {{ p.label }}
+      </button>
+    </div>
+    <p v-else-if="isSearching" class="search-hint">搜尋結果（跨全部集數，不分頁）</p>
+
     <p v-if="loading" class="loading">載入中 …</p>
-    <p v-else-if="filteredEpisodes.length === 0" class="loading">沒有符合條件的集數</p>
+    <p v-else-if="pagedEpisodes.length === 0" class="loading">沒有符合條件的集數</p>
     <div v-else class="episode-grid">
       <RouterLink
-        v-for="ep in filteredEpisodes"
+        v-for="ep in pagedEpisodes"
         :key="ep.id"
         :to="`/episodes/${ep.ep_no}`"
         class="ep-card"
@@ -109,6 +149,16 @@ onMounted(async () => {
 }
 .search-box::placeholder { color: #718096; }
 .search-box:focus { outline: none; border-color: #63b3ed; }
+
+.pager { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1.25rem; }
+.chip {
+  background: #2d3748; color: #a0aec0; border: none; border-radius: 6px;
+  padding: 0.3rem 0.7rem; cursor: pointer; font-size: 0.8rem;
+  transition: background 0.15s, color 0.15s;
+}
+.chip:hover { background: #374151; }
+.chip.active { background: #63b3ed; color: #1a1f2e; font-weight: 600; }
+.search-hint { color: #718096; font-size: 0.82rem; margin-bottom: 1.25rem; }
 
 .episode-grid {
   display: grid;
