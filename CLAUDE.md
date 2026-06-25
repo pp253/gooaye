@@ -99,7 +99,7 @@ gooaye/
 │           ├── BacktestView.vue ← 回測：6策略、主要策略切換器、KPI、目前建議、NAV合圖、年度、命中率、交易明細。**以 trades+daily 為單一事實來源在前端即時重算（隨區間/市場篩選互動）**
 │           ├── EpisodeList.vue / EpisodeDetail.vue
 │           └── router/index.ts
-└── supabase/migrations/         ← _init / _asset_type / _analytics / _auth_gate / _bull_stats / _advisor_security_definer / 20260621000004_episode_transcript
+└── supabase/migrations/         ← _init / _asset_type / _analytics / _auth_gate / _bull_stats / _advisor_security_definer / _episode_transcript / _rls_initplan / _login_logs / _login_logs_trigger / _invite_email / _invite_email_revoke_public / _roles / _is_admin_revoke_anon / _advisor_fixes
 ```
 
 ### 圖表套件（2026-06-21 起，不再手寫 SVG）
@@ -255,7 +255,11 @@ npm run build                                # 型別檢查 + 打包（改完務
   - ⚠️ `config push` 以 config.toml 為準覆蓋遠端；注意 `[storage.vector] enabled` 要維持 `false`（免費方案不支援，否則 push 會 402）。
 - **部署上線**：把正式網址加進 config.toml 的 `site_url` / `additional_redirect_urls` 與 Google client 的 redirect/origins，再 `config push`。
 - 金鑰：`.env` 的 `SUPABASE_AUTH_GOOGLE_CLIENT_ID` / `SUPABASE_AUTH_GOOGLE_SECRET`（gitignored）。
-- **Security Advisor 剩餘 2 個 warning（刻意保留，不適用本專案）**：`auth_leaked_password_protection`、`auth_insufficient_mfa_options`。兩者都是針對「密碼登入」的建議，本專案是**無密碼**（Google OAuth + Email magic link），故視為不適用、不處理。查警告：`npx supabase db advisors --linked --type security --level warn`。
+- **Security Advisor 剩餘 3 個 warning（全為刻意保留）**：
+  - `invite_email()` / `revoke_email()` authenticated 可執行 SECURITY DEFINER — 設計需要（函式內有 `is_admin()` 授權檢查，且已 revoke from public + anon）。
+  - `auth_leaked_password_protection` — 無密碼登入，不適用。
+  - 查警告：`npx supabase db advisors --linked --type security --level warn`。
+- **Performance Advisor：0 warning**（`allowed_emails` 的 policy 已合併為一條 + initplan）。查：`npx supabase db advisors --linked --type performance --level warn`。
 
 ---
 
