@@ -91,7 +91,7 @@ async function openTranscript() {
       <section v-show="activeTab === 'mentions'" class="section" role="tabpanel">
         <div v-if="mentions.length === 0" class="empty">本集無明確個股提及</div>
         <div class="mention-list">
-          <div v-for="m in mentions" :key="m.id" class="mention-card">
+          <div v-for="m in mentions" :key="m.id" class="app-card mention-card">
             <div class="mention-top">
               <RouterLink v-if="m.stock_id" :to="`/stocks/${m.stock_id}`" class="m-name link">
                 {{ m.name_raw }} ↗
@@ -125,8 +125,6 @@ async function openTranscript() {
 </template>
 
 <style scoped>
-.loading, .empty { color: #718096; }
-
 .ep-header { display: flex; align-items: baseline; gap: 1rem; margin-bottom: 0.75rem; }
 .ep-title { font-size: 1.4rem; font-weight: 700; color: #63b3ed; }
 .ep-date { font-size: 0.82rem; color: #718096; }
@@ -134,7 +132,6 @@ async function openTranscript() {
 .src-link:hover { text-decoration: underline; }
 
 .tags-row { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 1.5rem; }
-.tag { background: #2d3748; color: #90cdf4; font-size: 0.72rem; padding: 0.15rem 0.5rem; border-radius: 9999px; }
 
 .section { margin-bottom: 2rem; }
 .section-title { font-size: 1rem; font-weight: 600; color: #a0aec0; margin-bottom: 0.75rem; border-bottom: 1px solid #2d3748; padding-bottom: 0.4rem; }
@@ -142,7 +139,7 @@ async function openTranscript() {
 .summary-list { padding-left: 1.2rem; line-height: 1.8; color: #cbd5e0; font-size: 0.9rem; }
 
 .mention-list { display: flex; flex-direction: column; gap: 0.75rem; }
-.mention-card { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 8px; padding: 0.9rem 1rem; }
+.mention-card { padding: 0.9rem 1rem; }
 
 .mention-top { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem; }
 .m-name { font-weight: 600; font-size: 1rem; }

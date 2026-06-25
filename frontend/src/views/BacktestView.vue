@@ -8,6 +8,8 @@ import MultiEquityChart from '@/components/MultiEquityChart.vue'
 import HitRateChart from '@/components/HitRateChart.vue'
 import RecommendationList from '@/components/RecommendationList.vue'
 import type { Rec } from '@/components/RecommendationList.vue'
+import BaseChip from '@/components/BaseChip.vue'
+import BaseInput from '@/components/BaseInput.vue'
 
 interface Scope {
   scope: string; n_trades: number; win_rate?: number; avg_return?: number
@@ -388,25 +390,24 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
         <div class="filter-group">
           <span class="filter-label">市場篩選</span>
           <div class="filter-pills">
-            <button 
+            <BaseChip 
               v-for="m in ['ALL', 'TW', 'US'] as const" 
               :key="m" 
-              class="pill-btn" 
-              :class="{ active: selectedMarket === m }" 
+              :active="selectedMarket === m" 
               @click="selectedMarket = m"
             >
               {{ m === 'ALL' ? '全部' : m === 'TW' ? '台股' : '美股' }}
-            </button>
+            </BaseChip>
           </div>
         </div>
 
         <div class="filter-group">
           <span class="filter-label">回測區間</span>
           <div class="date-range-picker">
-            <input type="date" v-model="filterFrom" :min="dateMin" :max="filterTo" class="date-input" />
+            <BaseInput type="date" v-model="filterFrom" :min="dateMin" :max="filterTo" class="date-input-field" />
             <span class="filter-sep">—</span>
-            <input type="date" v-model="filterTo" :min="filterFrom" :max="dateMax" class="date-input" />
-            <button class="reset-btn" @click="filterFrom = dateMin; filterTo = dateMax">全部區間</button>
+            <BaseInput type="date" v-model="filterTo" :min="filterFrom" :max="dateMax" class="date-input-field" />
+            <BaseChip class="reset-btn" @click="filterFrom = dateMin; filterTo = dateMax">全部區間</BaseChip>
           </div>
         </div>
 
@@ -419,16 +420,15 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
       <section class="featured-bar">
         <span class="filter-label">主要策略</span>
         <div class="filter-pills">
-          <button
+          <BaseChip
             v-for="st in filteredStrategies"
             :key="'feat-' + st.id"
-            class="pill-btn"
-            :class="{ active: featuredId === st.id }"
+            :active="featuredId === st.id"
             :style="featuredId === st.id ? { background: STRAT_COLORS[st.id], color: '#0d1117' } : {}"
             @click="featuredId = st.id"
           >
             {{ st.id }}
-          </button>
+          </BaseChip>
         </div>
         <span class="featured-label">{{ featured?.label }}</span>
       </section>
@@ -513,7 +513,7 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
           <!-- 嚴格對標 -->
           <div class="factor-block">
             <div class="factor-block-title">每筆平均超額 vs 不同基準（贏面）</div>
-            <table class="bt-table small">
+            <table class="app-table bt-table small">
               <thead>
                 <tr><th>對標</th><th class="num">平均超額 α</th><th class="num">贏面</th><th class="num">樣本</th></tr>
               </thead>
@@ -602,7 +602,7 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
             <div class="yearly-strat-title">
               <span class="sid">{{ st.id }}</span> {{ st.label }}
             </div>
-            <table class="bt-table small">
+            <table class="app-table bt-table small">
               <thead>
                 <tr>
                   <th>年份</th>
@@ -640,7 +640,7 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
             <HitRateChart :hitRate="hitRate" />
           </div>
           <div class="hit-rate-table-wrap">
-            <table class="bt-table small">
+            <table class="app-table bt-table small">
               <thead>
                 <tr><th>持有天數</th><th>樣本數</th><th>上漲比例</th><th>平均報酬</th><th>超額(α)</th><th>贏大盤率</th></tr>
               </thead>
@@ -671,7 +671,7 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
         </div>
 
         <!-- 聚合統計表 -->
-        <table class="bt-table">
+        <table class="app-table bt-table">
           <thead>
             <tr>
               <th>範圍</th><th>交易數</th><th>勝率</th><th>平均報酬</th>
@@ -722,34 +722,34 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
         <!-- 交易清單展開區域 -->
         <div v-show="expanded[st.id]" class="trade-log-wrap">
           <div class="trade-filter-bar">
-            <input 
+            <BaseInput 
               type="text" 
               v-model="searchQuery[st.id]" 
               placeholder="搜尋代號或名稱..." 
               class="trade-search-input" 
             />
             <div class="trade-filter-pills">
-              <button 
-                class="pill-btn small" 
-                :class="{ active: tradeResultFilter[st.id] === 'ALL' }" 
+              <BaseChip 
+                class="small"
+                :active="tradeResultFilter[st.id] === 'ALL'" 
                 @click="tradeResultFilter[st.id] = 'ALL'"
               >
                 全部交易
-              </button>
-              <button 
-                class="pill-btn small" 
-                :class="{ active: tradeResultFilter[st.id] === 'WIN' }" 
+              </BaseChip>
+              <BaseChip 
+                class="small"
+                :active="tradeResultFilter[st.id] === 'WIN'" 
                 @click="tradeResultFilter[st.id] = 'WIN'"
               >
                 獲利
-              </button>
-              <button 
-                class="pill-btn small" 
-                :class="{ active: tradeResultFilter[st.id] === 'LOSS' }" 
+              </BaseChip>
+              <BaseChip 
+                class="small"
+                :active="tradeResultFilter[st.id] === 'LOSS'" 
                 @click="tradeResultFilter[st.id] = 'LOSS'"
               >
                 虧損
-              </button>
+              </BaseChip>
             </div>
             <span class="filtered-count">
               篩選後共 {{ getFilteredTrades(st.id, st._trades).length }} 筆
@@ -757,7 +757,7 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
           </div>
 
           <div class="trade-log">
-            <table class="bt-table small">
+            <table class="app-table bt-table small">
               <thead>
                 <tr>
                   <th>股票</th>
@@ -809,11 +809,6 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
 </template>
 
 <style scoped>
-.page-header { display: flex; align-items: baseline; gap: 1rem; margin-bottom: 1rem; }
-.page-title { font-size: 1.6rem; font-weight: 800; color: transparent; background: linear-gradient(90deg, #63b3ed, #9ae6b4); -webkit-background-clip: text; background-clip: text; }
-.ref-date { font-size: 0.8rem; color: #718096; }
-.loading { color: #718096; padding: 2rem 0; text-align: center; }
-
 .disclaimer {
   background: #2d2410; color: #f6ad55; font-size: 0.82rem; line-height: 1.6;
   padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1.5rem;
@@ -832,25 +827,14 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
 }
 .filter-label { font-size: 0.8rem; color: #718096; font-weight: 600; white-space: nowrap; }
 .filter-sep { color: #718096; }
-.date-input {
-  background: #0d1117; color: #e2e8f0; border: 1px solid #2d3748;
-  border-radius: 6px; padding: 0.35rem 0.5rem; font-size: 0.8rem; outline: none;
-  font-family: monospace;
-}
-.date-input:focus {
-  border-color: #63b3ed;
-}
-.date-range-picker {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
+.date-input-field {
+  max-width: 140px;
+  margin-bottom: 0;
 }
 .reset-btn {
-  background: #2d3748; color: #a0aec0; border: none; border-radius: 6px;
-  padding: 0.35rem 0.75rem; font-size: 0.78rem; cursor: pointer;
-  transition: all 0.2s;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.75rem;
 }
-.reset-btn:hover { background: #4a5568; color: #fff; }
 .filter-count { font-size: 0.78rem; color: #718096; margin-left: auto; }
 
 /* 邊際真實性檢驗 */
@@ -992,12 +976,10 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
 }
 
 /* Tables */
-.bt-table { width: 100%; border-collapse: collapse; }
 .bt-table th {
-  text-align: left; padding: 0.6rem 0.9rem; background: #1e2535; color: #718096;
-  font-size: 0.76rem; font-weight: 600; border-bottom: 1px solid #2d3748;
+  padding: 0.6rem 0.9rem; background: #1e2535;
 }
-.bt-table td { padding: 0.6rem 0.9rem; border-bottom: 1px solid #1e2535; font-size: 0.85rem; }
+.bt-table td { padding: 0.6rem 0.9rem; }
 .bt-table.small td { padding: 0.45rem 0.8rem; font-size: 0.78rem; }
 .bt-table tr.dim td { color: #4a5568; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
@@ -1052,35 +1034,16 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
   flex-wrap: wrap;
 }
 .trade-search-input {
-  background: #0d1117;
-  color: #e2e8f0;
-  border: 1px solid #2d3748;
-  border-radius: 6px;
-  padding: 0.35rem 0.75rem;
-  font-size: 0.8rem;
-  width: 200px;
-  outline: none;
-}
-.trade-search-input:focus {
-  border-color: #63b3ed;
+  max-width: 180px;
+  margin-bottom: 0;
 }
 .trade-filter-pills {
   display: flex;
   gap: 0.35rem;
 }
-.pill-btn {
-  background: #2d3748; color: #a0aec0; border: none; border-radius: 6px;
-  padding: 0.35rem 0.75rem; font-size: 0.8rem; cursor: pointer;
-  transition: all 0.2s;
-}
-.pill-btn.small {
+.trade-filter-pills .small {
   padding: 0.25rem 0.5rem;
   font-size: 0.75rem;
-}
-.pill-btn:hover { background: #4a5568; color: #fff; }
-.pill-btn.active {
-  background: #3182ce;
-  color: #fff;
 }
 .filtered-count {
   font-size: 0.75rem;

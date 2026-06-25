@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { RouterLink } from 'vue-router'
 import { supabase, fetchAllPaged } from '@/lib/supabase'
 import { useQuerySync } from '@/lib/useQuerySync'
 import type { Episode, Direction } from '@/lib/types'
+import BaseChip from '@/components/BaseChip.vue'
+import BaseInput from '@/components/BaseInput.vue'
+import BaseCard from '@/components/BaseCard.vue'
 
 interface Chip { name: string; direction: Direction }
 
@@ -139,32 +141,30 @@ onMounted(async () => {
   <div>
     <h1 class="page-title">集數列表</h1>
 
-    <input
+    <BaseInput
       v-model="search"
       type="search"
-      class="search-box"
       placeholder="搜尋集數、標題、主題、提及個股…"
     />
 
     <div v-if="!isSearching && pages.length > 1" class="pager">
-      <button
+      <BaseChip
         v-for="p in pages" :key="p.key"
-        :class="['chip', { active: p.key === currentPage?.key }]"
+        :active="p.key === pageKey"
         @click="pageKey = p.key"
       >
         {{ p.label }}
-      </button>
+      </BaseChip>
     </div>
     <p v-else-if="isSearching" class="search-hint">搜尋結果（跨全部集數，不分頁）</p>
 
     <p v-if="busy" class="loading">載入中 …</p>
     <p v-else-if="displayEpisodes.length === 0" class="loading">沒有符合條件的集數</p>
     <div v-else class="episode-grid">
-      <RouterLink
+      <BaseCard
         v-for="ep in displayEpisodes"
         :key="ep.id"
         :to="`/episodes/${ep.ep_no}`"
-        class="ep-card"
       >
         <div class="ep-header">
           <span class="ep-no">EP{{ ep.ep_no }}</span>
@@ -186,55 +186,19 @@ onMounted(async () => {
             +{{ mentionsByEp[ep.id].length - 12 }}
           </span>
         </div>
-      </RouterLink>
+      </BaseCard>
     </div>
   </div>
 </template>
 
 <style scoped>
-.page-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem; color: transparent; background: linear-gradient(90deg, #63b3ed, #9ae6b4); -webkit-background-clip: text; background-clip: text; }
-.loading { color: #718096; }
-
-.search-box {
-  display: block; width: 100%; max-width: 360px; margin-bottom: 1.25rem;
-  padding: 0.45rem 0.75rem; border-radius: 8px; border: 1px solid #2d3748;
-  background: #1a1f2e; color: #e2e8f0; font-size: 0.88rem;
-}
-.search-box::placeholder { color: #718096; }
-.search-box:focus { outline: none; border-color: #63b3ed; }
-
 .pager { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1.25rem; }
-.chip {
-  background: #2d3748; color: #a0aec0; border: none; border-radius: 6px;
-  padding: 0.3rem 0.7rem; cursor: pointer; font-size: 0.8rem;
-  transition: background 0.15s, color 0.15s;
-}
-.chip:hover { background: #374151; }
-.chip.active { background: linear-gradient(135deg, #63b3ed, #4299e1); color: #1a1f2e; font-weight: 600; box-shadow: 0 4px 12px -4px rgba(99, 179, 237, 0.5); }
 .search-hint { color: #718096; font-size: 0.82rem; margin-bottom: 1.25rem; }
 
 .episode-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 1rem;
-}
-
-.ep-card {
-  background: #1a1f2e;
-  border: 1px solid #2d3748;
-  border-radius: 10px;
-  padding: 1rem 1.25rem;
-  text-decoration: none;
-  color: inherit;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  transition: border-color 0.15s, background 0.15s, transform 0.15s, box-shadow 0.15s;
-}
-.ep-card:hover {
-  border-color: #63b3ed; background: #1e2535;
-  transform: translateY(-2px);
-  box-shadow: 0 10px 24px -12px rgba(99, 179, 237, 0.3);
 }
 
 .ep-header { display: flex; align-items: baseline; gap: 0.6rem; }
@@ -255,9 +219,5 @@ onMounted(async () => {
 }
 
 .ep-mentions { display: flex; flex-wrap: wrap; gap: 0.3rem; border-top: 1px solid #232b3a; padding-top: 0.6rem; }
-.m-chip { font-size: 0.72rem; padding: 0.12rem 0.45rem; border-radius: 4px; }
-.m-chip.bull { background: #22543d; color: #9ae6b4; }
-.m-chip.bear { background: #5b2330; color: #feb2b2; }
-.m-chip.neutral { background: #2a3950; color: #90cdf4; }
 .m-more { font-size: 0.72rem; color: #718096; align-self: center; }
 </style>

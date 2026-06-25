@@ -36,7 +36,7 @@ function pairPrice(entry: number, current: number): string {
 
 <template>
   <div v-if="recs.length" class="rec-wrap">
-    <table class="rec-table">
+    <table class="app-table rec-table">
       <thead>
         <tr>
           <th>狀態</th>
@@ -99,29 +99,12 @@ function pairPrice(entry: number, current: number): string {
   border: 1px solid #2d3748;
   border-radius: 8px;
 }
-.rec-table {
-  width: 100%;
-  border-collapse: collapse;
-}
 .rec-table th {
-  text-align: left;
-  padding: 0.55rem 0.8rem;
-  background: #1e2535;
-  color: #718096;
-  font-size: 0.74rem;
-  font-weight: 600;
-  border-bottom: 1px solid #2d3748;
   position: sticky;
   top: 0;
   z-index: 1;
+  background: var(--bg-card);
 }
-.rec-table td {
-  padding: 0.5rem 0.8rem;
-  border-bottom: 1px solid #1e2535;
-  font-size: 0.82rem;
-  vertical-align: middle;
-}
-.num { text-align: right; font-variant-numeric: tabular-nums; }
 .mono { font-family: monospace; font-size: 0.78rem; color: #a0aec0; }
 .mkt { color: #718096; font-size: 0.78rem; }
 

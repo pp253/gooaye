@@ -61,16 +61,7 @@ function closeMenu() { menuOpen.value = false }
   <LoginView v-else :denied-email="deniedEmail" />
 </template>
 
-<style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #0f1117 radial-gradient(ellipse 1200px 600px at 50% -10%, rgba(43, 108, 176, 0.12), transparent 60%);
-  color: #e2e8f0;
-  min-height: 100vh;
-}
-
+<style scoped>
 .app { display: flex; flex-direction: column; min-height: 100vh; }
 
 /* ── Nav ────────────────────────────────────────── */
@@ -163,13 +154,13 @@ body {
 
 /* ── Main ───────────────────────────────────────── */
 .boot { min-height: 100svh; display: flex; align-items: center; justify-content: center; color: #718096; }
-.main { flex: 1; padding: 1.5rem 2rem; width: 100%; }
+.main { flex: 1; padding: 1.5rem 2rem 4rem 2rem; width: 100%; }
 
 /* ── RWD ────────────────────────────────────────── */
 @media (max-width: 640px) {
   .nav-links { display: none; }
   .hamburger { display: flex; }
   .mobile-menu { display: flex; }
-  .main { padding: 1rem 1rem; }
+  .main { padding: 1rem 1rem 3rem 1rem; }
 }
 </style>

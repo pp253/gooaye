@@ -4,7 +4,6 @@ import {
   createChart,
   LineSeries,
   createSeriesMarkers,
-  ColorType,
   CrosshairMode,
   type IChartApi,
   type ISeriesApi,
@@ -15,6 +14,7 @@ import { supabase, fetchAllPaged } from '@/lib/supabase'
 import type { PricePoint } from '@/lib/types'
 import { DIRECTION_COLOR as dirColor, type MentionWithTime } from '@/lib/signal'
 import MentionTip from '@/components/MentionTip.vue'
+import { LIGHTWEIGHT_CHARTS_BASE_OPTIONS } from '@/lib/chartTheme'
 
 const props = defineProps<{
   stockId: number
@@ -86,23 +86,11 @@ const tipPos = ref({ leftPct: 0, topPct: 0, placeBelow: false })
 function buildChart() {
   if (!container.value) return
   chart = createChart(container.value, {
-    layout: {
-      background: { type: ColorType.Solid, color: '#161b27' },
-      textColor: '#a0aec0',
-      fontSize: 10,
-    },
-    grid: {
-      vertLines: { color: '#232b3a' },
-      horzLines: { color: '#232b3a' },
-    },
-    rightPriceScale: { borderColor: '#2d3748' },
-    timeScale: { borderColor: '#2d3748', timeVisible: false },
+    ...LIGHTWEIGHT_CHARTS_BASE_OPTIONS,
     crosshair: {
+      ...LIGHTWEIGHT_CHARTS_BASE_OPTIONS.crosshair,
       mode: CrosshairMode.Normal,
-      vertLine: { color: '#4a5568', width: 1, style: 2, labelBackgroundColor: '#1a202c' },
-      horzLine: { color: '#4a5568', width: 1, style: 2, labelBackgroundColor: '#1a202c' },
     },
-    autoSize: true,
   })
   series = chart.addSeries(LineSeries, {
     color: '#63b3ed',

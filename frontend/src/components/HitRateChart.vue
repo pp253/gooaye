@@ -6,6 +6,7 @@ import { BarChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
 import { pct } from '@/lib/format'
+import { ECHARTS_BASE_OPTIONS, CHART_THEME } from '@/lib/chartTheme'
 
 use([CanvasRenderer, BarChart, GridComponent, TooltipComponent, LegendComponent])
 
@@ -28,54 +29,54 @@ const option = computed(() => {
   const beatRates = props.hitRate.map((h) => +(((h.beat_bm_rate ?? 0) * 100).toFixed(1)))
 
   return {
-    backgroundColor: 'transparent',
-    grid: { top: 32, right: 20, bottom: 28, left: 48 },
+    ...ECHARTS_BASE_OPTIONS,
+    grid: { ...ECHARTS_BASE_OPTIONS.grid, top: 32 },
     legend: {
       top: 4,
-      textStyle: { color: '#a0aec0', fontSize: 11 },
+      textStyle: { color: CHART_THEME.textColorNormal, fontSize: 11 },
       icon: 'circle',
       itemWidth: 8,
       itemHeight: 8,
     },
     tooltip: {
+      ...ECHARTS_BASE_OPTIONS.tooltip,
       trigger: 'axis',
-      backgroundColor: '#0b0e16',
-      borderColor: '#2d3748',
-      textStyle: { color: '#e2e8f0', fontSize: 12 },
+      textStyle: { ...ECHARTS_BASE_OPTIONS.tooltip.textStyle, fontSize: 12 },
       formatter: (params: { seriesName: string; name: string; value: number; dataIndex: number }[]) => {
         if (!params?.length) return ''
         const i = params[0].dataIndex
         const h = props.hitRate[i]
         const lines = params.map(
-          (p) => `<span style="color:#a0aec0">${p.seriesName}</span>: <b>${p.value}%</b>`,
+          (p) => `<span style="color:${CHART_THEME.textColorNormal}">${p.seriesName}</span>: <b>${p.value}%</b>`,
         )
         return [
-          `<div style="font-size:11px;color:#718096">${params[0].name}（n=${h?.n ?? '—'}）</div>`,
+          `<div style="font-size:11px;color:${CHART_THEME.textColorMuted}">${params[0].name}（n=${h?.n ?? '—'}）</div>`,
           ...lines,
           h?.avg_alpha != null
-            ? `<div style="color:#718096;font-size:11px;margin-top:3px">平均超額α: ${pct(h.avg_alpha)}</div>`
+            ? `<div style="color:${CHART_THEME.textColorMuted};font-size:11px;margin-top:3px">平均超額α: ${pct(h.avg_alpha)}</div>`
             : '',
         ].join('<br>')
       },
     },
     xAxis: {
+      ...ECHARTS_BASE_OPTIONS.xAxis,
       type: 'category',
       data: horizons,
-      axisLine: { lineStyle: { color: '#2d3748' } },
-      axisLabel: { color: '#718096', fontSize: 11 },
+      axisLabel: {
+        ...ECHARTS_BASE_OPTIONS.xAxis.axisLabel,
+        fontSize: 11
+      }
     },
     yAxis: {
+      ...ECHARTS_BASE_OPTIONS.yAxis,
       type: 'value',
       min: 0,
       max: 100,
-      axisLine: { show: false },
-      axisTick: { show: false },
       axisLabel: {
-        color: '#718096',
+        ...ECHARTS_BASE_OPTIONS.yAxis.axisLabel,
         fontSize: 9,
         formatter: (v: number) => `${v}%`,
       },
-      splitLine: { lineStyle: { color: '#2d3748', type: 'dashed' } },
     },
     series: [
       {

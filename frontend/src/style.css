@@ -1,13 +1,69 @@
+/* ── Design System Variables ────────────────────── */
+:root {
+  --bg-app: #0f1117;
+  --bg-card: #1a1f2e;
+  --bg-hover: #1e2535;
+  --bg-input: #1a1f2e;
+  --border-color: #2d3748;
+  
+  --text-primary: #e2e8f0;
+  --text-secondary: #cbd5e0;
+  --text-muted: #718096;
+  --text-link: #63b3ed;
+  
+  --color-bull: #9ae6b4;
+  --color-bull-bg: #22543d;
+  --color-bear: #feb2b2;
+  --color-bear-bg: #5b2330;
+  --color-neutral: #90cdf4;
+  --color-neutral-bg: #2a3950;
+  
+  --color-admin: #f6ad55;
+  --color-admin-bg: #c0530033;
+  --color-user: #a0aec0;
+  --color-user-bg: #2d374833;
+  
+  --color-google: #63b3ed;
+  --color-google-bg: #2b4c7e33;
+  --color-email: #68d391;
+  --color-email-bg: #2d604533;
+
+  --color-warning: #f6ad55;
+  --color-warning-bg: #2d2410;
+}
+
 *,
 *::before,
 *::after {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+button {
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s, transform 0.1s ease, filter 0.1s ease, box-shadow 0.15s;
+  outline: none;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.97) !important;
+  filter: brightness(0.82) !important;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--color-google);
+  outline-offset: 2px;
 }
 
 html,
 body {
   margin: 0;
   padding: 0;
+  background: var(--bg-app) radial-gradient(ellipse 1200px 600px at 50% -10%, rgba(43, 108, 176, 0.12), transparent 60%);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  min-height: 100vh;
 }
 
 #app {
@@ -16,3 +72,131 @@ body {
   display: flex;
   flex-direction: column;
 }
+
+/* ── Common Typography & Headers ────────────────── */
+.page-header {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+.page-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: transparent;
+  background: linear-gradient(90deg, #63b3ed, #9ae6b4);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.ref-date {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.loading, .state {
+  color: var(--text-muted);
+  padding: 2rem 0;
+  text-align: center;
+}
+.empty {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+/* ── Unified Table Styles ───────────────────────── */
+.table-wrap {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid #232b3a;
+  box-shadow: 0 12px 32px -16px rgba(0, 0, 0, 0.5);
+  background: var(--bg-card);
+}
+.app-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.app-table th {
+  text-align: left;
+  padding: 0.6rem 0.7rem;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
+}
+.app-table td {
+  padding: 0.6rem 0.7rem;
+  border-bottom: 1px solid #1e2535;
+  font-size: 0.86rem;
+  vertical-align: middle;
+  white-space: nowrap;
+  transition: background 0.1s;
+}
+.app-table tr:hover td {
+  background: var(--bg-hover);
+}
+.app-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Badges ─────────────────────────────────────── */
+.m-chip {
+  font-size: 0.72rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  display: inline-block;
+}
+.m-chip.bull {
+  background: var(--color-bull-bg);
+  color: var(--color-bull);
+}
+.m-chip.bear {
+  background: var(--color-bear-bg);
+  color: var(--color-bear);
+}
+.m-chip.neutral {
+  background: var(--color-neutral-bg);
+  color: var(--color-neutral);
+}
+
+.market-badge {
+  font-size: 0.7rem;
+  padding: 0.08rem 0.4rem;
+  border-radius: 4px;
+  font-weight: 600;
+  display: inline-block;
+}
+.market-badge.tw {
+  background: var(--color-bull-bg);
+  color: var(--color-bull);
+}
+.market-badge.us {
+  background: #1a365d;
+  color: #90cdf4;
+}
+.market-badge.other,
+.market-badge.unknown {
+  background: #2d3748;
+  color: #a0aec0;
+}
+
+.tag {
+  background: #2d3748;
+  color: #90cdf4;
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  display: inline-block;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.badge.google { background: var(--color-google-bg); color: var(--color-google); }
+.badge.email { background: var(--color-email-bg); color: var(--color-email); }
+.badge.admin { background: var(--color-admin-bg); color: var(--color-admin); }
+.badge.user { background: var(--color-user-bg); color: var(--color-user); }

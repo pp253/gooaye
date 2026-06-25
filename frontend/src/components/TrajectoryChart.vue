@@ -8,6 +8,7 @@ import VChart from 'vue-echarts'
 import type { MentionWithTime } from '@/lib/signal'
 import { DIRECTION_WEIGHT, DIRECTION_COLOR as dirColor, relativeTime } from '@/lib/signal'
 import type { Direction } from '@/lib/types'
+import { ECHARTS_BASE_OPTIONS } from '@/lib/chartTheme'
 
 use([CanvasRenderer, ScatterChart, LineChart, GridComponent, TooltipComponent])
 
@@ -81,47 +82,40 @@ const option = computed(() => {
   ])
 
   return {
-    backgroundColor: 'transparent',
-    grid: { top: 18, right: 16, bottom: 28, left: 48 },
+    ...ECHARTS_BASE_OPTIONS,
     tooltip: {
+      ...ECHARTS_BASE_OPTIONS.tooltip,
       trigger: 'item',
-      backgroundColor: '#0b0e16',
-      borderColor: '#2d3748',
-      textStyle: { color: '#e2e8f0' },
       formatter: (p: { data?: { _m?: MInfo } }) =>
         p.data && p.data._m ? tooltipHtml(p.data._m) : '',
     },
     xAxis: {
+      ...ECHARTS_BASE_OPTIONS.xAxis,
       type: 'time',
       min: props.axisStart ? Date.parse(props.axisStart) : undefined,
       max: props.axisEnd ? Date.parse(props.axisEnd) : Date.parse(props.referenceDate),
-      axisLine: { lineStyle: { color: '#2d3748' } },
       axisLabel: {
-        color: '#a0aec0',
-        fontSize: 10,
+        ...ECHARTS_BASE_OPTIONS.xAxis.axisLabel,
         formatter: (v: number) => {
           const d = new Date(v)
           return `${d.getMonth() + 1}/${d.getDate()}`
         },
       },
-      splitLine: { show: true, lineStyle: { color: '#232b3a' } },
     },
     yAxis: {
+      ...ECHARTS_BASE_OPTIONS.yAxis,
       type: 'value',
       min: -1.2,
       max: 1.2,
       interval: 1,
-      axisLine: { show: false },
-      axisTick: { show: false },
       axisLabel: {
-        fontSize: 10,
+        ...ECHARTS_BASE_OPTIONS.yAxis.axisLabel,
         fontWeight: 600,
         formatter: (v: number) =>
           v === 1 ? '看多' : v === 0 ? '中性' : v === -1 ? '看空' : '',
         color: (v: number) =>
           v === 1 ? '#68d391' : v === 0 ? '#90cdf4' : v === -1 ? '#fc8181' : '#718096',
       },
-      splitLine: { lineStyle: { color: '#2d3748' } },
     },
     series: [
       {

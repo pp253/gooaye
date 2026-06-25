@@ -10,6 +10,8 @@ import Sparkline from '@/components/Sparkline.vue'
 import FreshnessLabel from '@/components/FreshnessLabel.vue'
 import ScoreLabel from '@/components/ScoreLabel.vue'
 import InfoTip from '@/components/InfoTip.vue'
+import BaseChip from '@/components/BaseChip.vue'
+import BaseInput from '@/components/BaseInput.vue'
 
 const rows = ref<StockRow[]>([])
 const referenceDate = ref('')
@@ -76,47 +78,46 @@ onMounted(async () => {
       <span v-if="referenceDate" class="ref-date">時效基準：{{ referenceDate }}（資料集最新一集）</span>
     </div>
 
-    <input
+    <BaseInput
       v-model="search"
       type="search"
-      class="search-box"
       placeholder="搜尋代號／名稱…"
     />
 
     <div class="controls">
       <div class="ctrl-group">
-        <button v-for="a in (['tradeable', 'theme', 'all'] as const)" :key="a"
-          :class="['chip', { active: assetView === a }]" @click="assetView = a">
+        <BaseChip v-for="a in (['tradeable', 'theme', 'all'] as const)" :key="a"
+          :active="assetView === a" @click="assetView = a">
           {{ a === 'tradeable' ? '可交易（個股/ETF）' : a === 'theme' ? '題材/指數' : '全部' }}
-        </button>
+        </BaseChip>
       </div>
       <div class="ctrl-group">
-        <button v-for="f in (['ALL', 'TW', 'US'] as const)" :key="f"
-          :class="['chip', { active: market === f }]" @click="market = f">
+        <BaseChip v-for="f in (['ALL', 'TW', 'US'] as const)" :key="f"
+          :active="market === f" @click="market = f">
           {{ f === 'ALL' ? '全部市場' : f }}
-        </button>
+        </BaseChip>
       </div>
       <div class="ctrl-group">
-        <button :class="['chip', { active: onlyPosition }]" @click="onlyPosition = !onlyPosition">
+        <BaseChip :active="onlyPosition" @click="onlyPosition = !onlyPosition">
           🔴 只看他有部位
-        </button>
-        <button :class="['chip', { active: hideStale }]" @click="hideStale = !hideStale">
+        </BaseChip>
+        <BaseChip :active="hideStale" @click="hideStale = !hideStale">
           隱藏過期（&gt;2月）
-        </button>
+        </BaseChip>
       </div>
       <div class="ctrl-group sort">
         <span class="sort-label">排序</span>
-        <button v-for="s in (['score', 'recent', 'count', 'first_mention'] as const)" :key="s"
-          :class="['chip', { active: sortBy === s }]" @click="sortBy = s">
+        <BaseChip v-for="s in (['score', 'recent', 'count', 'first_mention'] as const)" :key="s"
+          :active="sortBy === s" @click="sortBy = s">
           {{ s === 'score' ? '訊號分數' : s === 'recent' ? '最近提及' : s === 'first_mention' ? '首次提及' : '提及次數' }}
-        </button>
+        </BaseChip>
       </div>
     </div>
 
     <p v-if="loading" class="loading">載入中 …</p>
     <p v-else-if="filtered.length === 0" class="loading">沒有符合條件的個股</p>
     <div v-else class="table-wrap">
-    <table class="stock-table">
+    <table class="app-table stock-table-min">
       <thead>
         <tr>
           <th>個股</th>
@@ -189,56 +190,21 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.page-header { display: flex; align-items: baseline; gap: 1rem; margin-bottom: 1.25rem; }
-.page-title { font-size: 1.4rem; font-weight: 700; color: transparent; background: linear-gradient(90deg, #63b3ed, #9ae6b4); -webkit-background-clip: text; background-clip: text; }
-.ref-date { font-size: 0.78rem; color: #718096; }
-.loading { color: #718096; }
-
-.search-box {
-  display: block; width: 100%; max-width: 320px; margin-bottom: 1rem;
-  padding: 0.45rem 0.75rem; border-radius: 8px; border: 1px solid #2d3748;
-  background: #1a1f2e; color: #e2e8f0; font-size: 0.88rem;
-}
-.search-box::placeholder { color: #718096; }
-.search-box:focus { outline: none; border-color: #63b3ed; }
-
 .controls { display: flex; flex-wrap: wrap; gap: 1.25rem; margin-bottom: 1.5rem; }
 .ctrl-group { display: flex; align-items: center; gap: 0.4rem; }
 .sort-label { font-size: 0.78rem; color: #718096; margin-right: 0.2rem; }
 
-.chip {
-  background: #2d3748; color: #a0aec0; border: none; border-radius: 6px;
-  padding: 0.3rem 0.7rem; cursor: pointer; font-size: 0.8rem;
-  transition: background 0.15s, color 0.15s;
-}
-.chip:hover { background: #374151; }
-.chip.active { background: linear-gradient(135deg, #63b3ed, #4299e1); color: #1a1f2e; font-weight: 600; box-shadow: 0 4px 12px -4px rgba(99, 179, 237, 0.5); }
+.stock-table-min { min-width: 920px; }
 
-.table-wrap {
-  overflow-x: auto; border-radius: 12px; border: 1px solid #232b3a;
-  box-shadow: 0 12px 32px -16px rgba(0, 0, 0, 0.5);
-}
-.stock-table { width: 100%; border-collapse: collapse; min-width: 920px; }
-.stock-table th {
-  text-align: left; padding: 0.6rem 0.7rem; background: #1a1f2e; color: #718096;
-  font-size: 0.76rem; font-weight: 600; border-bottom: 1px solid #2d3748;
-  white-space: nowrap;
-}
 .th-info { display: inline-flex; align-items: center; gap: 0.15rem; }
 .info-list { margin: 0.4rem 0; padding-left: 1.1rem; }
 .info-list li { margin-bottom: 0.2rem; }
-.stock-table td { padding: 0.6rem 0.7rem; border-bottom: 1px solid #1e2535; font-size: 0.86rem; vertical-align: middle; white-space: nowrap; transition: background 0.1s; }
-.stock-table tr:hover td { background: #1e2535; }
 
 .stock-cell { display: flex; align-items: center; gap: 0.5rem; text-decoration: none; color: inherit; }
 .ticker { font-family: monospace; font-weight: 700; color: #90cdf4; }
 .name { color: #e2e8f0; }
 .stock-cell:hover .name { text-decoration: underline; }
 
-.market-badge { font-size: 0.7rem; padding: 0.08rem 0.4rem; border-radius: 4px; font-weight: 600; }
-.market-badge.tw { background: #22543d; color: #9ae6b4; }
-.market-badge.us { background: #1a365d; color: #90cdf4; }
-.market-badge.other, .market-badge.unknown { background: #2d3748; color: #a0aec0; }
 .pos-flag { font-size: 0.7rem; color: #fc8181; }
 .type-badge { font-size: 0.68rem; padding: 0.06rem 0.4rem; border-radius: 4px; background: #3a3052; color: #d6bcfa; }
 .type-badge.etf { background: #1e3a3a; color: #9ae6cd; }
@@ -247,7 +213,6 @@ onMounted(async () => {
 .fresh { font-size: 0.82rem; font-weight: 500; }
 .ep-ref { font-size: 0.72rem; color: #718096; margin-left: 0.4rem; }
 
-.num { text-align: center; font-variant-numeric: tabular-nums; }
 .price { text-align: right; color: #cbd5e0; }
 .spark-cell { width: 100px; padding-top: 0; padding-bottom: 0; }
 .muted { color: #718096; }

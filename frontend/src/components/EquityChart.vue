@@ -5,6 +5,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, MarkLineComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
+import { ECHARTS_BASE_OPTIONS, CHART_THEME } from '@/lib/chartTheme'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, MarkLineComponent])
 
@@ -23,13 +24,12 @@ const color = computed(() => {
 })
 
 const option = computed(() => ({
-  backgroundColor: 'transparent',
-  grid: { top: 8, right: 12, bottom: 22, left: 48 },
+  ...ECHARTS_BASE_OPTIONS,
+  grid: { ...ECHARTS_BASE_OPTIONS.grid, top: 8, right: 12, bottom: 22 },
   tooltip: {
+    ...ECHARTS_BASE_OPTIONS.tooltip,
     trigger: 'axis',
-    backgroundColor: '#0b0e16',
-    borderColor: '#2d3748',
-    textStyle: { color: '#e2e8f0', fontSize: 12 },
+    textStyle: { ...ECHARTS_BASE_OPTIONS.tooltip.textStyle, fontSize: 12 },
     formatter: (params: { axisValueLabel?: string; data?: [string, number] }[]) => {
       const p = params[0]
       if (!p?.data) return ''
@@ -37,10 +37,11 @@ const option = computed(() => ({
     },
   },
   xAxis: {
+    ...ECHARTS_BASE_OPTIONS.xAxis,
     type: 'time',
-    axisLine: { lineStyle: { color: '#2d3748' } },
     axisLabel: {
-      color: '#718096',
+      ...ECHARTS_BASE_OPTIONS.xAxis.axisLabel,
+      color: CHART_THEME.textColorMuted,
       fontSize: 9,
       formatter: (v: number) => {
         const d = new Date(v)
@@ -50,11 +51,14 @@ const option = computed(() => ({
     splitLine: { show: false },
   },
   yAxis: {
+    ...ECHARTS_BASE_OPTIONS.yAxis,
     type: 'value',
-    axisLine: { show: false },
-    axisTick: { show: false },
-    axisLabel: { color: '#718096', fontSize: 9, formatter: (v: number) => `${(v * 100).toFixed(0)}%` },
-    splitLine: { lineStyle: { color: '#2d3748', type: 'dashed' } },
+    axisLabel: { 
+      ...ECHARTS_BASE_OPTIONS.yAxis.axisLabel,
+      color: CHART_THEME.textColorMuted, 
+      fontSize: 9, 
+      formatter: (v: number) => `${(v * 100).toFixed(0)}%` 
+    },
   },
   series: [
     {
@@ -67,7 +71,7 @@ const option = computed(() => ({
       markLine: {
         silent: true,
         symbol: 'none',
-        lineStyle: { color: '#4a5568', width: 1 },
+        lineStyle: { color: CHART_THEME.crosshairColor, width: 1 },
         label: { show: false },
         data: [{ yAxis: 0 }],
       },

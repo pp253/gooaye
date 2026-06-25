@@ -7,6 +7,7 @@ import { pct, rate, retColor } from '@/lib/format'
 import { useQuerySync } from '@/lib/useQuerySync'
 import TrajectoryChart from '@/components/TrajectoryChart.vue'
 import PriceChart from '@/components/PriceChart.vue'
+import BaseChip from '@/components/BaseChip.vue'
 
 const props = defineProps<{ id: string }>()
 
@@ -125,10 +126,10 @@ onMounted(async () => {
       <!-- 共用時間範圍選擇器（同步所有圖表） -->
       <div class="range-bar">
         <span class="range-label">時間範圍</span>
-        <button v-for="r in RANGES" :key="r.key"
-          :class="['range-chip', { active: range === r.key }]" @click="range = r.key">
+        <BaseChip v-for="r in RANGES" :key="r.key"
+          :active="range === r.key" @click="range = r.key">
           {{ r.label }}
-        </button>
+        </BaseChip>
       </div>
 
       <!-- 股價走勢 + 提及點 -->
@@ -170,16 +171,9 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.loading { color: #718096; }
-
 .stock-header { display: flex; align-items: baseline; gap: 0.8rem; margin-bottom: 1.25rem; }
 .stock-name { font-size: 1.4rem; font-weight: 700; }
 .stock-ticker { font-family: monospace; font-size: 1.1rem; color: #90cdf4; font-weight: 600; }
-
-.market-badge { font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 4px; font-weight: 600; }
-.market-badge.tw { background: #22543d; color: #9ae6b4; }
-.market-badge.us { background: #1a365d; color: #90cdf4; }
-.market-badge.other, .market-badge.unknown { background: #2d3748; color: #a0aec0; }
 
 .summary-card {
   background: #1a1f2e; border: 1px solid; border-left-width: 4px;
@@ -205,13 +199,6 @@ onMounted(async () => {
 
 .range-bar { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 1.25rem; }
 .range-label { font-size: 0.78rem; color: #718096; margin-right: 0.3rem; }
-.range-chip {
-  background: #2d3748; color: #a0aec0; border: none; border-radius: 6px;
-  padding: 0.28rem 0.7rem; cursor: pointer; font-size: 0.8rem;
-  transition: background 0.15s, color 0.15s;
-}
-.range-chip:hover { background: #374151; }
-.range-chip.active { background: #63b3ed; color: #1a1f2e; font-weight: 600; }
 
 .section { margin-bottom: 2rem; }
 .section-title { font-size: 0.95rem; font-weight: 600; color: #a0aec0; margin-bottom: 0.75rem; border-bottom: 1px solid #2d3748; padding-bottom: 0.4rem; }

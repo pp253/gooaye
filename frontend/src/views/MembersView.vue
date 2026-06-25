@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { session } from '@/lib/auth'
+import BaseInput from '@/components/BaseInput.vue'
 
 interface AllowedEmail {
   email: string
@@ -70,13 +71,14 @@ onMounted(loadMembers)
 
 <template>
   <div class="members-page">
-    <h1>成員管理</h1>
+    <h1 class="page-title">成員管理</h1>
     <p class="sub">邀請其他 email 加入白名單，才能登入並查看資料。</p>
 
     <form class="invite-form" @submit.prevent="invite">
-      <input
+      <BaseInput
         v-model="newEmail"
         type="email"
+        class="invite-input"
         placeholder="輸入要邀請的 email"
         required
       />
@@ -91,7 +93,7 @@ onMounted(loadMembers)
     <div v-else-if="members.length === 0" class="state">尚無成員</div>
 
     <div v-else class="table-wrap">
-      <table>
+      <table class="app-table">
         <thead>
           <tr>
             <th>Email</th>
@@ -104,7 +106,7 @@ onMounted(loadMembers)
         <tbody>
           <tr v-for="m in members" :key="m.email">
             <td>{{ m.email }}</td>
-            <td><span class="role-badge" :class="m.role">{{ m.role === 'admin' ? 'ADMIN' : 'USER' }}</span></td>
+            <td><span class="badge" :class="m.role">{{ m.role === 'admin' ? 'ADMIN' : 'USER' }}</span></td>
             <td class="note">{{ m.note }}</td>
             <td class="time">{{ fmtTime(m.created_at) }}</td>
             <td>
@@ -125,14 +127,10 @@ onMounted(loadMembers)
 
 <style scoped>
 .members-page { max-width: 720px; margin: 0 auto; }
-h1 { font-size: 1.3rem; font-weight: 700; margin-bottom: 0.4rem; }
 .sub { color: #a0aec0; font-size: 0.88rem; margin-bottom: 1.2rem; }
 
 .invite-form { display: flex; gap: 0.6rem; margin-bottom: 0.8rem; }
-.invite-form input {
-  flex: 1; padding: 0.55rem 0.8rem; border-radius: 8px; border: 1px solid #2d3748;
-  background: #1a1f2e; color: #e2e8f0; font-size: 0.9rem;
-}
+.invite-form .invite-input { flex: 1; margin-bottom: 0; }
 .invite-form button {
   padding: 0.55rem 1.1rem; border-radius: 8px; border: none; cursor: pointer;
   background: #3182ce; color: #fff; font-weight: 600; font-size: 0.88rem;
@@ -143,28 +141,8 @@ h1 { font-size: 1.3rem; font-weight: 700; margin-bottom: 0.4rem; }
 .error { color: #fc8181; font-size: 0.85rem; margin-bottom: 0.8rem; }
 .success { color: #68d391; font-size: 0.85rem; margin-bottom: 0.8rem; }
 
-.state { color: #718096; padding: 3rem 0; text-align: center; }
-
-.table-wrap {
-  background: #1a1f2e; border: 1px solid #2d3748; border-radius: 10px;
-  overflow: hidden;
-}
-
-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
-thead { background: #232a3b; }
-th { text-align: left; padding: 0.6rem 1rem; color: #a0aec0; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
-td { padding: 0.55rem 1rem; border-top: 1px solid #2d3748; color: #e2e8f0; }
-tr:hover td { background: #232a3b; }
-
 .note { color: #a0aec0; font-size: 0.84rem; }
 .time { color: #a0aec0; font-variant-numeric: tabular-nums; font-size: 0.84rem; }
-
-.role-badge {
-  display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px;
-  font-size: 0.74rem; font-weight: 700; letter-spacing: 0.03em;
-}
-.role-badge.admin { background: #c0530033; color: #f6ad55; }
-.role-badge.user { background: #2d374833; color: #a0aec0; }
 
 .revoke {
   background: none; border: 1px solid #4a5568; color: #fc8181;
