@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { supabase } from '@/lib/supabase'
+import { useQuerySync } from '@/lib/useQuerySync'
 import type { Episode, Direction } from '@/lib/types'
 
 interface Chip { name: string; direction: Direction }
@@ -9,6 +10,22 @@ interface Chip { name: string; direction: Direction }
 const episodes = ref<Episode[]>([])
 const mentionsByEp = ref<Record<number, Chip[]>>({})
 const loading = ref(true)
+const search = ref('')
+
+useQuerySync({ q: { ref: search, default: '' } })
+
+const filteredEpisodes = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  if (!q) return episodes.value
+  return episodes.value.filter((ep) => {
+    if (String(ep.ep_no).includes(q)) return true
+    if (ep.title?.toLowerCase().includes(q)) return true
+    if (ep.topics.some((t) => t.toLowerCase().includes(q))) return true
+    if (ep.summary.some((s) => s.toLowerCase().includes(q))) return true
+    if (mentionsByEp.value[ep.id]?.some((c) => c.name.toLowerCase().includes(q))) return true
+    return false
+  })
+})
 
 // 看多 → 中性 → 看空 的排序權重
 const DIR_ORDER: Record<Direction, number> = { 看多: 0, 中性: 1, 看空: 2 }
@@ -39,10 +56,19 @@ onMounted(async () => {
 <template>
   <div>
     <h1 class="page-title">集數列表</h1>
+
+    <input
+      v-model="search"
+      type="search"
+      class="search-box"
+      placeholder="搜尋集數、標題、主題、提及個股…"
+    />
+
     <p v-if="loading" class="loading">載入中 …</p>
+    <p v-else-if="filteredEpisodes.length === 0" class="loading">沒有符合條件的集數</p>
     <div v-else class="episode-grid">
       <RouterLink
-        v-for="ep in episodes"
+        v-for="ep in filteredEpisodes"
         :key="ep.id"
         :to="`/episodes/${ep.ep_no}`"
         class="ep-card"
@@ -75,6 +101,14 @@ onMounted(async () => {
 <style scoped>
 .page-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem; color: #63b3ed; }
 .loading { color: #718096; }
+
+.search-box {
+  display: block; width: 100%; max-width: 360px; margin-bottom: 1.25rem;
+  padding: 0.45rem 0.75rem; border-radius: 8px; border: 1px solid #2d3748;
+  background: #1a1f2e; color: #e2e8f0; font-size: 0.88rem;
+}
+.search-box::placeholder { color: #718096; }
+.search-box:focus { outline: none; border-color: #63b3ed; }
 
 .episode-grid {
   display: grid;

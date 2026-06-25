@@ -20,6 +20,7 @@ const market = ref<'ALL' | 'TW' | 'US'>('ALL')
 const onlyPosition = ref(false)
 const hideStale = ref(true)
 const sortBy = ref<'score' | 'recent' | 'count' | 'first_mention'>('score')
+const search = ref('')
 
 // 篩選狀態同步到網址（重新整理／返回時保留）
 useQuerySync({
@@ -28,6 +29,7 @@ useQuerySync({
   pos: { ref: onlyPosition, default: false },
   hideStale: { ref: hideStale, default: true },
   sort: { ref: sortBy, default: 'score' },
+  q: { ref: search, default: '' },
 })
 
 const dirColor: Record<string, string> = {
@@ -43,6 +45,16 @@ const filtered = computed(() => {
   if (market.value !== 'ALL') list = list.filter((r) => r.market === market.value)
   if (onlyPosition.value) list = list.filter((r) => r.signal.has_position_ever)
   if (hideStale.value) list = list.filter((r) => r.signal.latest_freshness !== 'stale')
+
+  const q = search.value.trim().toLowerCase()
+  if (q) {
+    list = list.filter((r) =>
+      r.ticker.toLowerCase().includes(q) ||
+      r.name_zh.toLowerCase().includes(q) ||
+      (r.name_en?.toLowerCase().includes(q) ?? false) ||
+      r.aliases.some((a) => a.toLowerCase().includes(q)),
+    )
+  }
 
   list.sort((a, b) => {
     if (sortBy.value === 'score') return b.signal.score - a.signal.score
@@ -69,6 +81,13 @@ onMounted(async () => {
       <h1 class="page-title">個股追蹤</h1>
       <span v-if="referenceDate" class="ref-date">時效基準：{{ referenceDate }}（資料集最新一集）</span>
     </div>
+
+    <input
+      v-model="search"
+      type="search"
+      class="search-box"
+      placeholder="搜尋代號／名稱…"
+    />
 
     <div class="controls">
       <div class="ctrl-group">
@@ -180,6 +199,14 @@ onMounted(async () => {
 .page-title { font-size: 1.4rem; font-weight: 700; color: #63b3ed; }
 .ref-date { font-size: 0.78rem; color: #718096; }
 .loading { color: #718096; }
+
+.search-box {
+  display: block; width: 100%; max-width: 320px; margin-bottom: 1rem;
+  padding: 0.45rem 0.75rem; border-radius: 8px; border: 1px solid #2d3748;
+  background: #1a1f2e; color: #e2e8f0; font-size: 0.88rem;
+}
+.search-box::placeholder { color: #718096; }
+.search-box:focus { outline: none; border-color: #63b3ed; }
 
 .controls { display: flex; flex-wrap: wrap; gap: 1.25rem; margin-bottom: 1.5rem; }
 .ctrl-group { display: flex; align-items: center; gap: 0.4rem; }
