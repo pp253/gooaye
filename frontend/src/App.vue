@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, defineAsyncComponent } from 'vue'
 import { initAuth, authReady, session, allowed, isAdmin, signOut } from '@/lib/auth'
-import LoginView from '@/views/LoginView.vue'
+
+const LoginView = defineAsyncComponent(() => import('@/views/LoginView.vue'))
 
 onMounted(initAuth)
 

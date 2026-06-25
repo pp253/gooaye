@@ -1,26 +1,18 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { watch } from 'vue'
-import DecisionHome from '@/views/DecisionHome.vue'
-import EpisodeList from '@/views/EpisodeList.vue'
-import EpisodeDetail from '@/views/EpisodeDetail.vue'
-import StockList from '@/views/StockList.vue'
-import StockDetail from '@/views/StockDetail.vue'
-import BacktestView from '@/views/BacktestView.vue'
-import LoginLogsView from '@/views/LoginLogsView.vue'
-import MembersView from '@/views/MembersView.vue'
 import { authReady, isAdmin } from '@/lib/auth'
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', component: DecisionHome },
-    { path: '/episodes', component: EpisodeList },
-    { path: '/episodes/:ep', component: EpisodeDetail, props: true },
-    { path: '/stocks', component: StockList },
-    { path: '/stocks/:id', component: StockDetail, props: true },
-    { path: '/backtest', component: BacktestView },
-    { path: '/login-logs', component: LoginLogsView, meta: { adminOnly: true } },
-    { path: '/members', component: MembersView, meta: { adminOnly: true } },
+    { path: '/', component: () => import('@/views/DecisionHome.vue') },
+    { path: '/episodes', component: () => import('@/views/EpisodeList.vue') },
+    { path: '/episodes/:ep', component: () => import('@/views/EpisodeDetail.vue'), props: true },
+    { path: '/stocks', component: () => import('@/views/StockList.vue') },
+    { path: '/stocks/:id', component: () => import('@/views/StockDetail.vue'), props: true },
+    { path: '/backtest', component: () => import('@/views/BacktestView.vue') },
+    { path: '/login-logs', component: () => import('@/views/LoginLogsView.vue'), meta: { adminOnly: true } },
+    { path: '/members', component: () => import('@/views/MembersView.vue'), meta: { adminOnly: true } },
   ],
 })
 
