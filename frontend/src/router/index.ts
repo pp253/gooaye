@@ -6,6 +6,7 @@ import StockList from '@/views/StockList.vue'
 import StockDetail from '@/views/StockDetail.vue'
 import BacktestView from '@/views/BacktestView.vue'
 import LoginLogsView from '@/views/LoginLogsView.vue'
+import MembersView from '@/views/MembersView.vue'
 
 export default createRouter({
   history: createWebHistory(),
@@ -17,5 +18,6 @@ export default createRouter({
     { path: '/stocks/:id', component: StockDetail, props: true },
     { path: '/backtest', component: BacktestView },
     { path: '/login-logs', component: LoginLogsView },
+    { path: '/members', component: MembersView },
   ],
 })

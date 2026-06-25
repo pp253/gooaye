@@ -29,6 +29,7 @@ function closeMenu() { menuOpen.value = false }
         <RouterLink to="/backtest">回測</RouterLink>
         <RouterLink to="/episodes">集數列表</RouterLink>
         <RouterLink to="/login-logs">登入紀錄</RouterLink>
+        <RouterLink to="/members">成員管理</RouterLink>
         <button class="logout" @click="signOut">登出</button>
       </div>
 
@@ -46,6 +47,7 @@ function closeMenu() { menuOpen.value = false }
       <RouterLink to="/backtest" class="mm-link">回測</RouterLink>
       <RouterLink to="/episodes" class="mm-link">集數列表</RouterLink>
       <RouterLink to="/login-logs" class="mm-link">登入紀錄</RouterLink>
+      <RouterLink to="/members" class="mm-link">成員管理</RouterLink>
       <button class="mm-link mm-logout" @click="signOut">登出</button>
     </div>
 
