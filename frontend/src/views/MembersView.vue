@@ -71,7 +71,9 @@ onMounted(loadMembers)
 
 <template>
   <div class="members-page">
-    <h1 class="page-title">成員管理</h1>
+    <div class="page-header">
+      <h1 class="page-title">成員管理</h1>
+    </div>
     <p class="sub">邀請其他 email 加入白名單，才能登入並查看資料。</p>
 
     <form class="invite-form" @submit.prevent="invite">
@@ -126,7 +128,7 @@ onMounted(loadMembers)
 </template>
 
 <style scoped>
-.members-page { max-width: 720px; margin: 0 auto; }
+.members-page { max-width: 720px; margin: 0 auto; padding-bottom: 6rem; }
 .sub { color: #a0aec0; font-size: 0.88rem; margin-bottom: 1.2rem; }
 
 .invite-form { display: flex; gap: 0.6rem; margin-bottom: 0.8rem; }

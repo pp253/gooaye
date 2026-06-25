@@ -138,8 +138,10 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div>
-    <h1 class="page-title">集數列表</h1>
+  <div class="episodes-page">
+    <div class="page-header">
+      <h1 class="page-title">集數列表</h1>
+    </div>
 
     <BaseInput
       v-model="search"
@@ -192,6 +194,7 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.episodes-page { padding-bottom: 6rem; }
 .pager { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1.25rem; }
 .search-hint { color: #718096; font-size: 0.82rem; margin-bottom: 1.25rem; }
 

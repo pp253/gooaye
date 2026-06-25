@@ -827,9 +827,15 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
 }
 .filter-label { font-size: 0.8rem; color: #718096; font-weight: 600; white-space: nowrap; }
 .filter-sep { color: #718096; }
+.date-range-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+}
 .date-input-field {
   max-width: 140px;
-  margin-bottom: 0;
+  margin-bottom: 0 !important;
 }
 .reset-btn {
   font-size: 0.78rem;
