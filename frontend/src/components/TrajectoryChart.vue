@@ -7,6 +7,7 @@ import { GridComponent, TooltipComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
 import type { MentionWithTime } from '@/lib/signal'
 import { DIRECTION_WEIGHT, DIRECTION_COLOR as dirColor, relativeTime } from '@/lib/signal'
+import type { Direction } from '@/lib/types'
 
 use([CanvasRenderer, ScatterChart, LineChart, GridComponent, TooltipComponent])
 
@@ -30,7 +31,7 @@ interface MInfo {
   ep?: number
   date: string
   daysAgo: number
-  dir: string
+  dir: Direction
   conf: number
   hasPos: boolean
   quote: string
