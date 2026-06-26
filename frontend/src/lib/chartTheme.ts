@@ -104,3 +104,50 @@ export const LIGHTWEIGHT_CHARTS_BASE_OPTIONS: DeepPartial<ChartOptions> = {
   },
   autoSize: true,
 }
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function makeTimeXAxis(options?: Record<string, any>) {
+  return {
+    ...ECHARTS_BASE_OPTIONS.xAxis,
+    type: 'time',
+    ...options,
+    splitLine: {
+      ...ECHARTS_BASE_OPTIONS.xAxis.splitLine,
+      show: options?.splitLine?.show ?? true,
+      ...options?.splitLine,
+    },
+    axisLabel: {
+      ...ECHARTS_BASE_OPTIONS.xAxis.axisLabel,
+      color: CHART_THEME.textColorMuted,
+      fontSize: 9,
+      ...options?.axisLabel,
+    },
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function makeValueYAxis(options?: Record<string, any>) {
+  return {
+    ...ECHARTS_BASE_OPTIONS.yAxis,
+    type: 'value',
+    ...options,
+    axisLabel: {
+      ...ECHARTS_BASE_OPTIONS.yAxis.axisLabel,
+      color: CHART_THEME.textColorMuted,
+      fontSize: 9,
+      ...options?.axisLabel,
+    },
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function makeLegend(options?: Record<string, any>) {
+  return {
+    top: 4,
+    textStyle: { color: CHART_THEME.textColorNormal, fontSize: 11 },
+    icon: 'circle',
+    itemWidth: 8,
+    itemHeight: 8,
+    ...options,
+  }
+}

@@ -3,7 +3,15 @@ import { ref, computed, onMounted } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { pct, rate, retColor, formatDateYmd } from '@/lib/format'
 import { loadStockSignals } from '@/lib/useData'
-import { daysBetween } from '@/lib/signal'
+import {
+  aggregate,
+  slicedDaily,
+  computeMdd,
+  computeSharpe,
+  computeCagr,
+  computeStreaks,
+  getYearlyStats,
+} from '@/lib/backtestStats'
 import KpiCard from '@/components/KpiCard.vue'
 import MultiEquityChart from '@/components/MultiEquityChart.vue'
 import HitRateChart from '@/components/HitRateChart.vue'
@@ -157,124 +165,7 @@ onMounted(async () => {
   loading.value = false
 })
 
-// 客戶端重算聚合（依 ep_date 篩選後的 trades）
-function aggregate(trades: TradeRow[], scope: string) {
-  const sel = scope === 'ALL' ? trades : trades.filter((t) => t.market === scope)
-  if (!sel.length) return { scope, n_trades: 0 }
-  const rets = sel.map((t) => t.ret)
-  const withBm = sel.filter((t) => t.bm_ret !== null && t.bm_ret !== undefined)
-  const alphas = withBm.map((t) => t.ret - t.bm_ret!)
-  const mean = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / arr.length
-  return {
-    scope,
-    n_trades: sel.length,
-    win_rate: rets.filter((r) => r > 0).length / rets.length,
-    avg_return: mean(rets),
-    avg_bm_return: withBm.length ? mean(withBm.map((t) => t.bm_ret!)) : null,
-    avg_alpha: alphas.length ? mean(alphas) : null,
-    beat_bm_rate: alphas.length ? alphas.filter((a) => a > 0).length / alphas.length : null,
-  }
-}
-
-// 從後端日頻 NAV 取出選定市場的序列，依篩選區間切片並重設基準為 1.0。
-// 回傳策略曲線與基準曲線（皆 { date, value }[]），供畫圖與指標計算共用。
-function slicedDaily(st: Strategy, scope: string) {
-  const d = st.daily?.[scope]
-  if (!d || d.dates.length < 2) return { curve: [], bmCurve: [] }
-  const idx: number[] = []
-  for (let i = 0; i < d.dates.length; i++) {
-    if (d.dates[i] >= filterFrom.value && d.dates[i] <= filterTo.value) idx.push(i)
-  }
-  if (idx.length < 2) return { curve: [], bmCurve: [] }
-  const base = d.nav[idx[0]] || 1
-  const bmBase = d.bm_nav ? d.bm_nav[idx[0]] || 1 : null
-  const curve = idx.map((i) => ({ date: d.dates[i], value: +(d.nav[i] / base).toFixed(4) }))
-  const bmCurve =
-    d.bm_nav && bmBase
-      ? idx.map((i) => ({ date: d.dates[i], value: +(d.bm_nav![i] / bmBase).toFixed(4) }))
-      : []
-  return { curve, bmCurve }
-}
-
-// 由日頻淨值序列計算最大回撤 (MDD)：含持倉期間浮動回撤，符合真實風險。
-function computeMdd(curve: { date: string; value: number }[]) {
-  let peak = -Infinity
-  let mdd = 0.0
-  for (const p of curve) {
-    if (p.value > peak) peak = p.value
-    const dd = p.value / peak - 1.0
-    if (dd < mdd) mdd = dd
-  }
-  return mdd
-}
-
-// 由淨值序列計算年化 Sharpe：以實際取樣頻率年化（自動適應日/週頻，含現金空檔，投組層級）。
-function computeSharpe(curve: { date: string; value: number }[]) {
-  if (curve.length < 3) return null
-  const r: number[] = []
-  for (let i = 1; i < curve.length; i++) {
-    if (curve[i - 1].value > 0) r.push(curve[i].value / curve[i - 1].value - 1)
-  }
-  if (r.length < 2) return null
-  const mean = r.reduce((a, b) => a + b, 0) / r.length
-  const variance = r.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (r.length - 1)
-  const sd = Math.sqrt(variance)
-  if (sd === 0) return null
-  const days = daysBetween(curve[0].date, curve[curve.length - 1].date)
-  const years = days / 365.25
-  const periodsPerYear = years > 0 ? r.length / years : 252
-  return (mean / sd) * Math.sqrt(periodsPerYear)
-}
-
-// 由日頻淨值序列計算年化複合報酬 (CAGR)。
-function computeCagr(curve: { date: string; value: number }[]) {
-  if (curve.length < 2) return null
-  const days = daysBetween(curve[0].date, curve[curve.length - 1].date)
-  if (days <= 0 || curve[0].value <= 0) return null
-  const years = days / 365.25
-  return Math.pow(curve[curve.length - 1].value / curve[0].value, 1 / years) - 1
-}
-
-// 計算連續勝敗
-function computeStreaks(trades: TradeRow[]) {
-  const sorted = [...trades].sort((a, b) => a.exit_date.localeCompare(b.exit_date))
-  let winStreak = 0
-  let loseStreak = 0
-  let maxWin = 0
-  let maxLose = 0
-  for (const t of sorted) {
-    if (t.ret > 0) {
-      winStreak++
-      loseStreak = 0
-      if (winStreak > maxWin) maxWin = winStreak
-    } else if (t.ret < 0) {
-      loseStreak++
-      winStreak = 0
-      if (loseStreak > maxLose) maxLose = loseStreak
-    } else {
-      winStreak = 0
-      loseStreak = 0
-    }
-  }
-  return { maxWin, maxLose }
-}
-
-// 產出分年統計
-function getYearlyStats(trades: TradeRow[]) {
-  const byYear: Record<string, TradeRow[]> = {}
-  for (const t of trades) {
-    if (!t.exit_date) continue
-    const year = t.exit_date.split('-')[0]
-    if (!byYear[year]) byYear[year] = []
-    byYear[year].push(t)
-  }
-  return Object.keys(byYear)
-    .sort()
-    .map((year) => ({
-      year,
-      ...aggregate(byYear[year], 'ALL'),
-    }))
-}
+// Calculations are imported from '@/lib/backtestStats'
 
 const filteredStrategies = computed(() =>
   strategies.value.map((st) => {
@@ -286,7 +177,12 @@ const filteredStrategies = computed(() =>
         (selectedMarket.value === 'ALL' || t.market === selectedMarket.value),
     )
     const streaks = computeStreaks(trades)
-    const { curve, bmCurve } = slicedDaily(st, selectedMarket.value)
+    const { curve, bmCurve } = slicedDaily(
+      st,
+      selectedMarket.value,
+      filterFrom.value,
+      filterTo.value,
+    )
     return {
       ...st,
       _trades: trades,

@@ -210,8 +210,12 @@ export async function loadSparklines(rows: StockRow[]): Promise<void> {
   }
   // 同時更新快取中的 recent 資料，避免覆蓋/損壞完整快取列表
   if (_cache) {
+    const cacheMap = new Map<number, StockRow>()
+    for (const s of _cache.stocks) {
+      cacheMap.set(s.id, s)
+    }
     for (const r of rows) {
-      const cached = _cache.stocks.find((s) => s.id === r.id)
+      const cached = cacheMap.get(r.id)
       if (cached) {
         cached.recent = r.recent
       }

@@ -10,7 +10,13 @@ import {
   MarkLineComponent,
 } from 'echarts/components'
 import VChart from 'vue-echarts'
-import { ECHARTS_BASE_OPTIONS, CHART_THEME } from '@/lib/chartTheme'
+import {
+  ECHARTS_BASE_OPTIONS,
+  CHART_THEME,
+  makeTimeXAxis,
+  makeValueYAxis,
+  makeLegend,
+} from '@/lib/chartTheme'
 import { formatDateYmd } from '@/lib/format'
 
 use([
@@ -40,14 +46,7 @@ const props = withDefaults(
 const option = computed(() => ({
   ...ECHARTS_BASE_OPTIONS,
   grid: { ...ECHARTS_BASE_OPTIONS.grid, top: 28, right: 16, bottom: 28 },
-  legend: {
-    top: 4,
-    right: 0,
-    textStyle: { color: CHART_THEME.textColorNormal, fontSize: 11 },
-    icon: 'circle',
-    itemWidth: 8,
-    itemHeight: 8,
-  },
+  legend: makeLegend({ right: 0 }),
   tooltip: {
     ...ECHARTS_BASE_OPTIONS.tooltip,
     trigger: 'axis',
@@ -60,30 +59,20 @@ const option = computed(() => ({
       return `<div style="font-size:11px;color:${CHART_THEME.textColorMuted}">${date}</div>${lines.join('<br>')}`
     },
   },
-  xAxis: {
-    ...ECHARTS_BASE_OPTIONS.xAxis,
-    type: 'time',
+  xAxis: makeTimeXAxis({
+    splitLine: { show: false },
     axisLabel: {
-      ...ECHARTS_BASE_OPTIONS.xAxis.axisLabel,
-      color: CHART_THEME.textColorMuted,
-      fontSize: 9,
       formatter: (v: number) => {
         const d = new Date(v)
         return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`
       },
     },
-    splitLine: { show: false },
-  },
-  yAxis: {
-    ...ECHARTS_BASE_OPTIONS.yAxis,
-    type: 'value',
+  }),
+  yAxis: makeValueYAxis({
     axisLabel: {
-      ...ECHARTS_BASE_OPTIONS.yAxis.axisLabel,
-      color: CHART_THEME.textColorMuted,
-      fontSize: 9,
       formatter: (v: number) => `$${v.toFixed(2)}`,
     },
-  },
+  }),
   series: props.series.map((s) => ({
     name: s.label,
     type: 'line',

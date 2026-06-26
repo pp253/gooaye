@@ -6,7 +6,7 @@ import { BarChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
 import { pct } from '@/lib/format'
-import { ECHARTS_BASE_OPTIONS, CHART_THEME } from '@/lib/chartTheme'
+import { ECHARTS_BASE_OPTIONS, CHART_THEME, makeLegend, makeValueYAxis } from '@/lib/chartTheme'
 
 use([CanvasRenderer, BarChart, GridComponent, TooltipComponent, LegendComponent])
 
@@ -31,13 +31,7 @@ const option = computed(() => {
   return {
     ...ECHARTS_BASE_OPTIONS,
     grid: { ...ECHARTS_BASE_OPTIONS.grid, top: 32 },
-    legend: {
-      top: 4,
-      textStyle: { color: CHART_THEME.textColorNormal, fontSize: 11 },
-      icon: 'circle',
-      itemWidth: 8,
-      itemHeight: 8,
-    },
+    legend: makeLegend(),
     tooltip: {
       ...ECHARTS_BASE_OPTIONS.tooltip,
       trigger: 'axis',
@@ -70,17 +64,14 @@ const option = computed(() => {
         fontSize: 11,
       },
     },
-    yAxis: {
-      ...ECHARTS_BASE_OPTIONS.yAxis,
-      type: 'value',
+    yAxis: makeValueYAxis({
       min: 0,
       max: 100,
       axisLabel: {
-        ...ECHARTS_BASE_OPTIONS.yAxis.axisLabel,
         fontSize: 9,
         formatter: (v: number) => `${v}%`,
       },
-    },
+    }),
     series: [
       {
         name: '上漲比例',

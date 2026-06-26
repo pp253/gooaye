@@ -12,8 +12,9 @@ const root = ref<HTMLElement | null>(null)
 function toggle() {
   open.value = !open.value
   if (open.value) {
-    // 下一個 tick 後掛上外部點擊監聽，避免本次點擊立即關閉
-    setTimeout(() => document.addEventListener('click', onOutside), 0)
+    document.addEventListener('click', onOutside)
+  } else {
+    document.removeEventListener('click', onOutside)
   }
 }
 function onOutside(e: MouseEvent) {

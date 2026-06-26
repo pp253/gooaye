@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { loadSparklines, searchStockSignals, type StockRow } from '@/lib/useData'
 import { HALF_LIFE_DAYS, DIRECTION_COLOR as dirColor } from '@/lib/signal'
-import { TRADEABLE_TYPES } from '@/lib/types'
 import { pct, retColor } from '@/lib/format'
 import { useQuerySync } from '@/lib/useQuerySync'
+import { useStockFiltering } from '@/lib/useStockFiltering'
 import Sparkline from '@/components/Sparkline.vue'
 import FreshnessLabel from '@/components/FreshnessLabel.vue'
 import ScoreLabel from '@/components/ScoreLabel.vue'
@@ -34,35 +34,13 @@ useQuerySync({
   q: { ref: search, default: '' },
 })
 
-const filtered = computed(() => {
-  let list = rows.value.slice()
-  if (assetView.value === 'tradeable')
-    list = list.filter((r) => TRADEABLE_TYPES.includes(r.asset_type))
-  else if (assetView.value === 'theme')
-    list = list.filter((r) => !TRADEABLE_TYPES.includes(r.asset_type))
-  if (market.value !== 'ALL') list = list.filter((r) => r.market === market.value)
-  if (onlyPosition.value) list = list.filter((r) => r.signal.has_position_ever)
-  if (hideStale.value) list = list.filter((r) => r.signal.latest_freshness !== 'stale')
-
-  const q = search.value.trim().toLowerCase()
-  if (q) {
-    list = list.filter(
-      (r) =>
-        r.ticker.toLowerCase().includes(q) ||
-        r.name_zh.toLowerCase().includes(q) ||
-        (r.name_en?.toLowerCase().includes(q) ?? false) ||
-        r.aliases.some((a) => a.toLowerCase().includes(q)),
-    )
-  }
-
-  list.sort((a, b) => {
-    if (sortBy.value === 'score') return b.signal.score - a.signal.score
-    if (sortBy.value === 'recent') return a.signal.latest_days_ago - b.signal.latest_days_ago
-    if (sortBy.value === 'first_mention')
-      return a.signal.first_mention_days_ago - b.signal.first_mention_days_ago
-    return b.signal.mention_count - a.signal.mention_count
-  })
-  return list
+const { filtered } = useStockFiltering(rows, {
+  assetView,
+  market,
+  onlyPosition,
+  hideStale,
+  search,
+  sortBy,
 })
 
 async function doSearch(q: string) {
@@ -70,8 +48,8 @@ async function doSearch(q: string) {
   const res = await searchStockSignals(q)
   rows.value = res.stocks
   referenceDate.value = res.referenceDate
+  await loadSparklines(rows.value)
   loading.value = false
-  loadSparklines(rows.value)
 }
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null

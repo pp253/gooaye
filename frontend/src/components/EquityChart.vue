@@ -5,7 +5,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, MarkLineComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
-import { ECHARTS_BASE_OPTIONS, CHART_THEME } from '@/lib/chartTheme'
+import { ECHARTS_BASE_OPTIONS, CHART_THEME, makeTimeXAxis, makeValueYAxis } from '@/lib/chartTheme'
 import { retColor } from '@/lib/format'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, MarkLineComponent])
@@ -37,30 +37,20 @@ const option = computed(() => ({
       return `${p.data[0]} · ${(p.data[1] * 100).toFixed(1)}%`
     },
   },
-  xAxis: {
-    ...ECHARTS_BASE_OPTIONS.xAxis,
-    type: 'time',
+  xAxis: makeTimeXAxis({
+    splitLine: { show: false },
     axisLabel: {
-      ...ECHARTS_BASE_OPTIONS.xAxis.axisLabel,
-      color: CHART_THEME.textColorMuted,
-      fontSize: 9,
       formatter: (v: number) => {
         const d = new Date(v)
         return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`
       },
     },
-    splitLine: { show: false },
-  },
-  yAxis: {
-    ...ECHARTS_BASE_OPTIONS.yAxis,
-    type: 'value',
+  }),
+  yAxis: makeValueYAxis({
     axisLabel: {
-      ...ECHARTS_BASE_OPTIONS.yAxis.axisLabel,
-      color: CHART_THEME.textColorMuted,
-      fontSize: 9,
       formatter: (v: number) => `${(v * 100).toFixed(0)}%`,
     },
-  },
+  }),
   series: [
     {
       type: 'line',

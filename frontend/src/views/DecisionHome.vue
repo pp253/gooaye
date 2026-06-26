@@ -3,9 +3,10 @@ import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { supabase } from '@/lib/supabase'
 import { loadStockSignals, type StockRow } from '@/lib/useData'
-import { TRADEABLE_TYPES, type Episode } from '@/lib/types'
+import type { Episode } from '@/lib/types'
 import { pct, retColor } from '@/lib/format'
 import { useQuerySync } from '@/lib/useQuerySync'
+import { useStockFiltering } from '@/lib/useStockFiltering'
 import { DIRECTION_COLOR as dirColor } from '@/lib/signal'
 import FreshnessLabel from '@/components/FreshnessLabel.vue'
 import ScoreLabel from '@/components/ScoreLabel.vue'
@@ -37,14 +38,9 @@ useQuerySync({
 })
 
 // 套用資產類型 + 市場篩選後的基底
-const filtered = computed(() => {
-  let list = rows.value.slice()
-  if (assetView.value === 'tradeable')
-    list = list.filter((r) => TRADEABLE_TYPES.includes(r.asset_type))
-  else if (assetView.value === 'theme')
-    list = list.filter((r) => !TRADEABLE_TYPES.includes(r.asset_type))
-  if (market.value !== 'ALL') list = list.filter((r) => r.market === market.value)
-  return list
+const { filtered } = useStockFiltering(rows, {
+  assetView,
+  market,
 })
 
 // 只看「近期（非過期）」的訊號做決策
@@ -78,8 +74,7 @@ const newlyMentioned = computed(() =>
 )
 
 onMounted(async () => {
-  loadLatestEpisodes()
-  const res = await loadStockSignals()
+  const [, res] = await Promise.all([loadLatestEpisodes(), loadStockSignals()])
   rows.value = res.stocks
   referenceDate.value = res.referenceDate
   loading.value = false

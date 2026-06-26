@@ -103,12 +103,12 @@ const searchLoading = ref(false)
 async function ensureFullDataLoaded() {
   if (allEpisodes.value) return
   searchLoading.value = true
-  const { data } = await supabase
-    .from('episodes')
-    .select(EP_COLUMNS)
-    .order('ep_no', { ascending: false })
-  allEpisodes.value = (data ?? []) as Episode[]
-  allMentions.value = await fetchMentionsMap()
+  const [epsData, mentionsData] = await Promise.all([
+    supabase.from('episodes').select(EP_COLUMNS).order('ep_no', { ascending: false }),
+    fetchMentionsMap(),
+  ])
+  allEpisodes.value = (epsData.data ?? []) as Episode[]
+  allMentions.value = mentionsData
   searchLoading.value = false
 }
 

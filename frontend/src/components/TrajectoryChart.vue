@@ -14,7 +14,7 @@ import {
   type MentionWithTime,
   type MarkerInfo,
 } from '@/lib/signal'
-import { ECHARTS_BASE_OPTIONS } from '@/lib/chartTheme'
+import { ECHARTS_BASE_OPTIONS, makeTimeXAxis, makeValueYAxis } from '@/lib/chartTheme'
 
 use([CanvasRenderer, ScatterChart, LineChart, GridComponent, TooltipComponent])
 
@@ -77,29 +77,24 @@ const option = computed(() => {
       formatter: (p: { data?: { _m?: MarkerInfo } }) =>
         p.data && p.data._m ? tooltipHtml(p.data._m) : '',
     },
-    xAxis: {
-      ...ECHARTS_BASE_OPTIONS.xAxis,
-      type: 'time',
+    xAxis: makeTimeXAxis({
       min: props.axisStart ? Date.parse(props.axisStart) : undefined,
       max: props.axisEnd ? Date.parse(props.axisEnd) : Date.parse(props.referenceDate),
+      splitLine: { show: true },
       axisLabel: {
-        ...ECHARTS_BASE_OPTIONS.xAxis.axisLabel,
+        fontSize: 10,
         formatter: (v: number) => {
           const d = new Date(v)
           return `${d.getMonth() + 1}/${d.getDate()}`
         },
       },
-    },
-    yAxis: {
-      ...ECHARTS_BASE_OPTIONS.yAxis,
-      type: 'value',
+    }),
+    yAxis: makeValueYAxis({
       min: -1.2,
       max: 1.2,
       interval: 1,
       axisLabel: {
-        ...ECHARTS_BASE_OPTIONS.yAxis.axisLabel,
         fontWeight: 600,
-        formatter: (v: number) => (v === 1 ? '看多' : v === 0 ? '中性' : v === -1 ? '看空' : ''),
         color: (v: number) =>
           v === 1
             ? DIRECTION_COLOR['看多']
@@ -108,8 +103,9 @@ const option = computed(() => {
               : v === -1
                 ? DIRECTION_COLOR['看空']
                 : '#718096',
+        formatter: (v: number) => (v === 1 ? '看多' : v === 0 ? '中性' : v === -1 ? '看空' : ''),
       },
-    },
+    }),
     series: [
       {
         type: 'line',
