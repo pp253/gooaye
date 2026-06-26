@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, defineAsyncComponent } from 'vue'
-import { initAuth, authReady, session, allowed, isAdmin, signOut, storePendingInviteToken } from '@/lib/auth'
+import { initAuth, authReady, session, allowed, isAdmin, signOut, precheckInviteToken } from '@/lib/auth'
 
 const LoginView = defineAsyncComponent(() => import('@/views/LoginView.vue'))
 
 onMounted(() => {
   // /invite/:token 不走一般路由（未在白名單前整個 app 都被登入閘門擋住）：
-  // 先把 token 存到 localStorage，導回首頁，OAuth 登入完成後 auth.ts 會消費它。
+  // 立即檢查連結是否還有效（不需登入即可知道），有效才存到 localStorage，
+  // 導回首頁，OAuth 登入完成後 auth.ts 會消費它。
   const match = window.location.pathname.match(/^\/invite\/([^/]+)\/?$/)
   if (match) {
-    storePendingInviteToken(match[1])
     window.history.replaceState({}, '', '/')
+    precheckInviteToken(match[1])
   }
   initAuth()
 })

@@ -15,6 +15,20 @@ export function storePendingInviteToken(token: string): void {
   localStorage.setItem(INVITE_TOKEN_KEY, token)
 }
 
+/**
+ * /invite/:token 進站時立即檢查連結是否還有效（不需登入即可知道），
+ * 過期/已使用/不存在則直接顯示提示，不必等使用者點完 Google 登入才發現。
+ */
+export async function precheckInviteToken(token: string): Promise<void> {
+  const { data, error } = await supabase.rpc('is_invite_link_valid', { target_token: token })
+  if (error || data !== true) {
+    inviteError.value = '此邀請連結已失效、已過期，或已被使用，請聯絡管理員重新邀請。'
+    localStorage.removeItem(INVITE_TOKEN_KEY)
+    return
+  }
+  storePendingInviteToken(token)
+}
+
 /** 消費本機暫存的邀請連結 token；回傳是否成功加入白名單 */
 async function consumePendingInviteToken(): Promise<boolean> {
   const token = localStorage.getItem(INVITE_TOKEN_KEY)
