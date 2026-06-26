@@ -175,7 +175,7 @@ function closeMenu() { menuOpen.value = false }
 
 /* ── Main ───────────────────────────────────────── */
 .boot { min-height: 100svh; display: flex; align-items: center; justify-content: center; color: #718096; }
-.main { flex: 1; padding: 1.5rem 2rem 4rem 2rem; width: 100%; max-width: 1180px; }
+.main { flex: 1; padding: 1.5rem 2rem 4rem 2rem; width: 100%; max-width: 1180px; margin: 0 auto; }
 
 /* ── RWD ────────────────────────────────────────── */
 @media (max-width: 640px) {
