@@ -513,24 +513,26 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
           <!-- 嚴格對標 -->
           <div class="factor-block">
             <div class="factor-block-title">每筆平均超額 vs 不同基準（贏面）</div>
-            <table class="app-table bt-table small">
-              <thead>
-                <tr><th>對標</th><th class="num">平均超額 α</th><th class="num">贏面</th><th class="num">樣本</th></tr>
-              </thead>
-              <tbody>
-                <tr v-for="tic in ['SPY', 'QQQ', 'SOXX']" :key="tic">
-                  <td>
-                    {{ tic }}
-                    <span class="bm-note">{{ tic === 'SPY' ? '大盤' : tic === 'QQQ' ? '科技' : '費半（最嚴）' }}</span>
-                  </td>
-                  <td class="num" :style="{ color: retColor(featuredFactor?.vs?.[tic]?.avg_alpha) }">
-                    <strong>{{ featuredFactor?.vs?.[tic] ? pct(featuredFactor.vs[tic]!.avg_alpha) : '—' }}</strong>
-                  </td>
-                  <td class="num">{{ featuredFactor?.vs?.[tic] ? rate(featuredFactor.vs[tic]!.beat_rate) : '—' }}</td>
-                  <td class="num muted">{{ featuredFactor?.vs?.[tic]?.n ?? '—' }}</td>
-                </tr>
-              </tbody>
-            </table>
+            <div class="table-wrap">
+              <table class="app-table bt-table small">
+                <thead>
+                  <tr><th>對標</th><th class="num">平均超額 α</th><th class="num">贏面</th><th class="num">樣本</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="tic in ['SPY', 'QQQ', 'SOXX']" :key="tic">
+                    <td>
+                      {{ tic }}
+                      <span class="bm-note">{{ tic === 'SPY' ? '大盤' : tic === 'QQQ' ? '科技' : '費半（最嚴）' }}</span>
+                    </td>
+                    <td class="num" :style="{ color: retColor(featuredFactor?.vs?.[tic]?.avg_alpha) }">
+                      <strong>{{ featuredFactor?.vs?.[tic] ? pct(featuredFactor.vs[tic]!.avg_alpha) : '—' }}</strong>
+                    </td>
+                    <td class="num">{{ featuredFactor?.vs?.[tic] ? rate(featuredFactor.vs[tic]!.beat_rate) : '—' }}</td>
+                    <td class="num muted">{{ featuredFactor?.vs?.[tic]?.n ?? '—' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
           <!-- 因子拆解 -->
           <div class="factor-block">
@@ -602,31 +604,33 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
             <div class="yearly-strat-title">
               <span class="sid">{{ st.id }}</span> {{ st.label }}
             </div>
-            <table class="app-table bt-table small">
-              <thead>
-                <tr>
-                  <th>年份</th>
-                  <th class="num">交易數</th>
-                  <th class="num">勝率</th>
-                  <th class="num">平均報酬</th>
-                  <th class="num">超額 (α)</th>
-                  <th class="num">贏大盤率</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="y in st._yearly" :key="y.year">
-                  <td>{{ y.year }} 年</td>
-                  <td class="num">{{ y.n_trades }}</td>
-                  <td class="num">{{ rate(y.win_rate) }}</td>
-                  <td class="num" :style="{ color: retColor(y.avg_return) }">{{ pct(y.avg_return) }}</td>
-                  <td class="num" :style="{ color: retColor(y.avg_alpha) }"><strong>{{ pct(y.avg_alpha) }}</strong></td>
-                  <td class="num">{{ rate(y.beat_bm_rate) }}</td>
-                </tr>
-                <tr v-if="!(st._yearly?.length)">
-                  <td colspan="6" class="empty-td">目前篩選條件下無年度交易數據</td>
-                </tr>
-              </tbody>
-            </table>
+            <div class="table-wrap">
+              <table class="app-table bt-table small">
+                <thead>
+                  <tr>
+                    <th>年份</th>
+                    <th class="num">交易數</th>
+                    <th class="num">勝率</th>
+                    <th class="num">平均報酬</th>
+                    <th class="num">超額 (α)</th>
+                    <th class="num">贏大盤率</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="y in st._yearly" :key="y.year">
+                    <td>{{ y.year }} 年</td>
+                    <td class="num">{{ y.n_trades }}</td>
+                    <td class="num">{{ rate(y.win_rate) }}</td>
+                    <td class="num" :style="{ color: retColor(y.avg_return) }">{{ pct(y.avg_return) }}</td>
+                    <td class="num" :style="{ color: retColor(y.avg_alpha) }"><strong>{{ pct(y.avg_alpha) }}</strong></td>
+                    <td class="num">{{ rate(y.beat_bm_rate) }}</td>
+                  </tr>
+                  <tr v-if="!(st._yearly?.length)">
+                    <td colspan="6" class="empty-td">目前篩選條件下無年度交易數據</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>
@@ -671,25 +675,27 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
         </div>
 
         <!-- 聚合統計表 -->
-        <table class="app-table bt-table">
-          <thead>
-            <tr>
-              <th>範圍</th><th>交易數</th><th>勝率</th><th>平均報酬</th>
-              <th>基準報酬</th><th>超額(α)</th><th>贏基準比例</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="sc in st._scopes" :key="sc.scope" :class="{ dim: !sc.n_trades }">
-              <td>{{ scopeLabel[sc.scope] }}</td>
-              <td class="num">{{ sc.n_trades || '—' }}</td>
-              <td class="num">{{ rate(sc.win_rate) }}</td>
-              <td class="num" :style="{ color: retColor(sc.avg_return) }">{{ pct(sc.avg_return) }}</td>
-              <td class="num muted">{{ pct(sc.avg_bm_return) }}</td>
-              <td class="num" :style="{ color: retColor(sc.avg_alpha) }"><strong>{{ pct(sc.avg_alpha) }}</strong></td>
-              <td class="num">{{ rate(sc.beat_bm_rate) }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="table-wrap">
+          <table class="app-table bt-table">
+            <thead>
+              <tr>
+                <th>範圍</th><th>交易數</th><th>勝率</th><th>平均報酬</th>
+                <th>基準報酬</th><th>超額(α)</th><th>贏基準比例</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="sc in st._scopes" :key="sc.scope" :class="{ dim: !sc.n_trades }">
+                <td>{{ scopeLabel[sc.scope] }}</td>
+                <td class="num">{{ sc.n_trades || '—' }}</td>
+                <td class="num">{{ rate(sc.win_rate) }}</td>
+                <td class="num" :style="{ color: retColor(sc.avg_return) }">{{ pct(sc.avg_return) }}</td>
+                <td class="num muted">{{ pct(sc.avg_bm_return) }}</td>
+                <td class="num" :style="{ color: retColor(sc.avg_alpha) }"><strong>{{ pct(sc.avg_alpha) }}</strong></td>
+                <td class="num">{{ rate(sc.beat_bm_rate) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
         <!-- Top / Bottom performers -->
         <template v-if="st._trades.length">
@@ -816,6 +822,8 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
 }
 .disclaimer strong { color: #fbd38d; }
 
+.hit-rate-table-wrap { overflow-x: auto; }
+
 /* 篩選列 */
 .filter-bar {
   display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
@@ -842,6 +850,15 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
   padding: 0.35rem 0.75rem;
 }
 .filter-count { font-size: 0.78rem; color: #718096; margin-left: auto; }
+
+@media (max-width: 640px) {
+  .filter-bar { gap: 0.9rem; }
+  .filter-group { flex-wrap: wrap; width: 100%; }
+  .date-range-picker { flex-wrap: wrap; width: 100%; }
+  .date-input-field { max-width: 130px; }
+  .reset-btn { margin-left: auto; }
+  .filter-count { margin-left: 0; }
+}
 
 /* 邊際真實性檢驗 */
 .factor-grid {
@@ -1013,11 +1030,14 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
   display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
   margin: 1rem 0;
 }
-.perf-col { background: #1e2535; border-radius: 8px; padding: 0.6rem 0.9rem; border: 1px solid #2d3748; }
+@media (max-width: 640px) {
+  .performers { grid-template-columns: 1fr; }
+}
+.perf-col { background: #1e2535; border-radius: 8px; padding: 0.6rem 0.9rem; border: 1px solid #2d3748; min-width: 0; }
 .perf-head { font-size: 0.76rem; font-weight: 700; margin-bottom: 0.5rem; letter-spacing: 0.04em; }
 .perf-head.win { color: #68d391; }
 .perf-head.loss { color: #fc8181; }
-.perf-row { display: flex; align-items: baseline; gap: 0.4rem; padding: 0.25rem 0; font-size: 0.78rem; border-bottom: 1px dashed #2d3748; }
+.perf-row { display: flex; align-items: baseline; gap: 0.4rem; padding: 0.25rem 0; font-size: 0.78rem; border-bottom: 1px dashed #2d3748; min-width: 0; }
 .perf-row:last-child { border-bottom: none; }
 .perf-ticker { font-family: monospace; color: #63b3ed; font-weight: 600; min-width: 3.5rem; text-decoration: none; }
 .perf-ticker:hover { text-decoration: underline; }
@@ -1057,7 +1077,7 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
   margin-left: auto;
 }
 
-.trade-log { max-height: 400px; overflow-y: auto; border-radius: 8px; border: 1px solid #2d3748; }
+.trade-log { max-height: 400px; overflow-y: auto; overflow-x: auto; border-radius: 8px; border: 1px solid #2d3748; }
 
 .method { font-size: 0.76rem; color: #718096; line-height: 1.6; margin-top: 1.5rem; }
 </style>

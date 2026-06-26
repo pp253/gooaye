@@ -96,6 +96,7 @@ function pairPrice(entry: number, current: number): string {
 .rec-wrap {
   max-height: 420px;
   overflow-y: auto;
+  overflow-x: auto;
   border: 1px solid #2d3748;
   border-radius: 8px;
 }
