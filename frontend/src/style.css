@@ -5,24 +5,24 @@
   --bg-hover: #1e2535;
   --bg-input: #1a1f2e;
   --border-color: #2d3748;
-  
+
   --text-primary: #e2e8f0;
   --text-secondary: #cbd5e0;
   --text-muted: #718096;
   --text-link: #63b3ed;
-  
+
   --color-bull: #9ae6b4;
   --color-bull-bg: #22543d;
   --color-bear: #feb2b2;
   --color-bear-bg: #5b2330;
   --color-neutral: #90cdf4;
   --color-neutral-bg: #2a3950;
-  
+
   --color-admin: #f6ad55;
   --color-admin-bg: #c0530033;
   --color-user: #a0aec0;
   --color-user-bg: #2d374833;
-  
+
   --color-google: #63b3ed;
   --color-google-bg: #2b4c7e33;
   --color-email: #68d391;
@@ -43,7 +43,12 @@
 
 button {
   font-family: inherit;
-  transition: background 0.15s, color 0.15s, transform 0.1s ease, filter 0.1s ease, box-shadow 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    transform 0.1s ease,
+    filter 0.1s ease,
+    box-shadow 0.15s;
   outline: none;
 }
 
@@ -61,7 +66,8 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: var(--bg-app) radial-gradient(ellipse 1200px 600px at 50% -10%, rgba(43, 108, 176, 0.12), transparent 60%);
+  background: var(--bg-app)
+    radial-gradient(ellipse 1200px 600px at 50% -10%, rgba(43, 108, 176, 0.12), transparent 60%);
   color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   min-height: 100vh;
@@ -93,7 +99,8 @@ body {
   font-size: 0.78rem;
   color: var(--text-muted);
 }
-.loading, .state {
+.loading,
+.state {
   color: var(--text-muted);
   padding: 2rem 0;
   text-align: center;
@@ -197,7 +204,19 @@ body {
   font-size: 0.78rem;
   font-weight: 600;
 }
-.badge.google { background: var(--color-google-bg); color: var(--color-google); }
-.badge.email { background: var(--color-email-bg); color: var(--color-email); }
-.badge.admin { background: var(--color-admin-bg); color: var(--color-admin); }
-.badge.user { background: var(--color-user-bg); color: var(--color-user); }
+.badge.google {
+  background: var(--color-google-bg);
+  color: var(--color-google);
+}
+.badge.email {
+  background: var(--color-email-bg);
+  color: var(--color-email);
+}
+.badge.admin {
+  background: var(--color-admin-bg);
+  color: var(--color-admin);
+}
+.badge.user {
+  background: var(--color-user-bg);
+  color: var(--color-user);
+}

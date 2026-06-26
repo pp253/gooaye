@@ -6,11 +6,7 @@ defineProps<{
 </script>
 
 <template>
-  <button
-    :class="['chip', { active }]"
-    :disabled="disabled"
-    type="button"
-  >
+  <button :class="['chip', { active }]" :disabled="disabled" type="button">
     <slot />
   </button>
 </template>
@@ -28,7 +24,11 @@ defineProps<{
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s, color 0.15s, transform 0.15s, box-shadow 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    transform 0.15s,
+    box-shadow 0.15s;
   white-space: nowrap;
 }
 .chip:hover:not(:disabled) {
@@ -38,7 +38,9 @@ defineProps<{
   background: linear-gradient(135deg, rgba(99, 179, 237, 0.2), rgba(154, 230, 180, 0.1));
   color: #90cdf4;
   font-weight: 600;
-  box-shadow: inset 0 0 0 1px rgba(99, 179, 237, 0.35), 0 6px 16px -6px rgba(99, 179, 237, 0.25);
+  box-shadow:
+    inset 0 0 0 1px rgba(99, 179, 237, 0.35),
+    0 6px 16px -6px rgba(99, 179, 237, 0.25);
 }
 .chip:disabled {
   opacity: 0.5;

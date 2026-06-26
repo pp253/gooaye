@@ -11,8 +11,16 @@ const router = createRouter({
     { path: '/stocks', component: () => import('@/views/StockList.vue') },
     { path: '/stocks/:id', component: () => import('@/views/StockDetail.vue'), props: true },
     { path: '/backtest', component: () => import('@/views/BacktestView.vue') },
-    { path: '/login-logs', component: () => import('@/views/LoginLogsView.vue'), meta: { adminOnly: true } },
-    { path: '/members', component: () => import('@/views/MembersView.vue'), meta: { adminOnly: true } },
+    {
+      path: '/login-logs',
+      component: () => import('@/views/LoginLogsView.vue'),
+      meta: { adminOnly: true },
+    },
+    {
+      path: '/members',
+      component: () => import('@/views/MembersView.vue'),
+      meta: { adminOnly: true },
+    },
   ],
 })
 

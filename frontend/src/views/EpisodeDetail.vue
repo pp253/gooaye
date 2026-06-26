@@ -23,8 +23,10 @@ onMounted(async () => {
     supabase
       .from('mentions')
       .select('*, stocks(ticker, name_zh, market)')
-      .eq('episode_id',
-        (await supabase.from('episodes').select('id').eq('ep_no', props.ep).single()).data?.id ?? -1
+      .eq(
+        'episode_id',
+        (await supabase.from('episodes').select('id').eq('ep_no', props.ep).single()).data?.id ??
+          -1,
       )
       .order('confidence', { ascending: false }),
   ])
@@ -54,7 +56,7 @@ async function openTranscript() {
     <template v-else-if="episode">
       <div class="ep-header">
         <h1 class="ep-title">EP{{ episode.ep_no }} {{ episode.title }}</h1>
-        <span class="ep-date" v-if="episode.published_at">{{ episode.published_at }}</span>
+        <span v-if="episode.published_at" class="ep-date">{{ episode.published_at }}</span>
         <a :href="episode.source_url" target="_blank" class="src-link">逐字稿原文 ↗</a>
       </div>
 
@@ -72,7 +74,8 @@ async function openTranscript() {
       <div class="tab-bar" role="tablist">
         <button
           :class="['tab', { active: activeTab === 'mentions' }]"
-          role="tab" :aria-selected="activeTab === 'mentions'"
+          role="tab"
+          :aria-selected="activeTab === 'mentions'"
           @click="activeTab = 'mentions'"
         >
           提及個股 <span class="tab-count">{{ mentions.length }}</span>
@@ -80,7 +83,8 @@ async function openTranscript() {
         <button
           v-if="episode.transcript_chars"
           :class="['tab', { active: activeTab === 'transcript' }]"
-          role="tab" :aria-selected="activeTab === 'transcript'"
+          role="tab"
+          :aria-selected="activeTab === 'transcript'"
           @click="openTranscript"
         >
           逐字稿
@@ -97,7 +101,7 @@ async function openTranscript() {
                 {{ m.name_raw }} ↗
               </RouterLink>
               <span v-else class="m-name">{{ m.name_raw }}</span>
-              <span class="m-ticker" v-if="m.ticker_guess">{{ m.ticker_guess }}</span>
+              <span v-if="m.ticker_guess" class="m-ticker">{{ m.ticker_guess }}</span>
               <span class="m-market">{{ m.market }}</span>
               <span class="m-dir" :style="{ color: dirColor[m.direction] }">
                 {{ m.direction }}
@@ -106,7 +110,7 @@ async function openTranscript() {
               <span v-if="m.has_position" class="m-pos">有部位</span>
             </div>
             <blockquote class="m-quote">「{{ m.quote }}」</blockquote>
-            <p class="m-note" v-if="m.note">{{ m.note }}</p>
+            <p v-if="m.note" class="m-note">{{ m.note }}</p>
           </div>
         </div>
       </section>
@@ -114,7 +118,8 @@ async function openTranscript() {
       <section
         v-if="episode.transcript_chars"
         v-show="activeTab === 'transcript'"
-        class="section" role="tabpanel"
+        class="section"
+        role="tabpanel"
       >
         <p v-if="transcriptLoading" class="empty">逐字稿載入中 …</p>
         <pre v-else class="transcript">{{ transcript }}</pre>
@@ -125,53 +130,180 @@ async function openTranscript() {
 </template>
 
 <style scoped>
-.ep-header { display: flex; align-items: baseline; gap: 1rem; margin-bottom: 0.75rem; }
-.ep-title { font-size: 1.4rem; font-weight: 700; color: #63b3ed; }
-.ep-date { font-size: 0.82rem; color: #718096; }
-.src-link { font-size: 0.82rem; color: #90cdf4; text-decoration: none; margin-left: auto; }
-.src-link:hover { text-decoration: underline; }
+.ep-header {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+.ep-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #63b3ed;
+}
+.ep-date {
+  font-size: 0.82rem;
+  color: #718096;
+}
+.src-link {
+  font-size: 0.82rem;
+  color: #90cdf4;
+  text-decoration: none;
+  margin-left: auto;
+}
+.src-link:hover {
+  text-decoration: underline;
+}
 
-.tags-row { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 1.5rem; }
+.tags-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 1.5rem;
+}
 
-.section { margin-bottom: 2rem; }
-.section-title { font-size: 1rem; font-weight: 600; color: #a0aec0; margin-bottom: 0.75rem; border-bottom: 1px solid #2d3748; padding-bottom: 0.4rem; }
+.section {
+  margin-bottom: 2rem;
+}
+.section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #a0aec0;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid #2d3748;
+  padding-bottom: 0.4rem;
+}
 
-.summary-list { padding-left: 1.2rem; line-height: 1.8; color: #cbd5e0; font-size: 0.9rem; }
+.summary-list {
+  padding-left: 1.2rem;
+  line-height: 1.8;
+  color: #cbd5e0;
+  font-size: 0.9rem;
+}
 
-.mention-list { display: flex; flex-direction: column; gap: 0.75rem; }
-.mention-card { padding: 0.9rem 1rem; }
+.mention-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.mention-card {
+  padding: 0.9rem 1rem;
+}
 
-.mention-top { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem; }
-.m-name { font-weight: 600; font-size: 1rem; }
-.m-name.link { color: #90cdf4; text-decoration: none; }
-.m-name.link:hover { text-decoration: underline; }
-.m-ticker { background: #2d3748; color: #90cdf4; font-size: 0.75rem; padding: 0.1rem 0.45rem; border-radius: 4px; font-family: monospace; }
-.m-market { font-size: 0.72rem; color: #718096; }
-.m-dir { font-weight: 600; font-size: 0.85rem; }
-.m-conf { font-size: 0.75rem; color: #718096; margin-left: auto; }
-.m-pos { background: #2a4365; color: #90cdf4; font-size: 0.72rem; padding: 0.1rem 0.45rem; border-radius: 4px; }
+.mention-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.m-name {
+  font-weight: 600;
+  font-size: 1rem;
+}
+.m-name.link {
+  color: #90cdf4;
+  text-decoration: none;
+}
+.m-name.link:hover {
+  text-decoration: underline;
+}
+.m-ticker {
+  background: #2d3748;
+  color: #90cdf4;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  font-family: monospace;
+}
+.m-market {
+  font-size: 0.72rem;
+  color: #718096;
+}
+.m-dir {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.m-conf {
+  font-size: 0.75rem;
+  color: #718096;
+  margin-left: auto;
+}
+.m-pos {
+  background: #2a4365;
+  color: #90cdf4;
+  font-size: 0.72rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+}
 
-.m-quote { border-left: 3px solid #4a5568; padding-left: 0.75rem; color: #a0aec0; font-size: 0.85rem; line-height: 1.6; font-style: italic; margin-bottom: 0.4rem; }
-.m-note { font-size: 0.8rem; color: #718096; }
+.m-quote {
+  border-left: 3px solid #4a5568;
+  padding-left: 0.75rem;
+  color: #a0aec0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  font-style: italic;
+  margin-bottom: 0.4rem;
+}
+.m-note {
+  font-size: 0.8rem;
+  color: #718096;
+}
 
-.tab-bar { display: flex; gap: 0.25rem; border-bottom: 1px solid #2d3748; margin-bottom: 1.25rem; }
+.tab-bar {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid #2d3748;
+  margin-bottom: 1.25rem;
+}
 .tab {
-  background: none; border: none; cursor: pointer;
-  color: #718096; font-size: 0.92rem; font-weight: 600;
-  padding: 0.5rem 0.9rem; margin-bottom: -1px;
-  border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #718096;
+  font-size: 0.92rem;
+  font-weight: 600;
+  padding: 0.5rem 0.9rem;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
-.tab:hover { color: #a0aec0; }
-.tab.active { color: #63b3ed; border-bottom-color: #63b3ed; }
+.tab:hover {
+  color: #a0aec0;
+}
+.tab.active {
+  color: #63b3ed;
+  border-bottom-color: #63b3ed;
+}
 .tab-count {
-  font-size: 0.72rem; font-weight: 600; color: #a0aec0;
-  background: #2d3748; border-radius: 9999px; padding: 0.05rem 0.45rem; margin-left: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #a0aec0;
+  background: #2d3748;
+  border-radius: 9999px;
+  padding: 0.05rem 0.45rem;
+  margin-left: 0.3rem;
 }
-.tab.active .tab-count { background: #2a4365; color: #90cdf4; }
+.tab.active .tab-count {
+  background: #2a4365;
+  color: #90cdf4;
+}
 .transcript {
-  white-space: pre-wrap; word-break: break-word; margin: 0;
-  background: #161b27; border: 1px solid #2d3748; border-radius: 8px;
-  padding: 1rem 1.1rem; color: #cbd5e0; font-size: 0.86rem; line-height: 1.85;
-  font-family: inherit; max-height: 60vh; overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  background: #161b27;
+  border: 1px solid #2d3748;
+  border-radius: 8px;
+  padding: 1rem 1.1rem;
+  color: #cbd5e0;
+  font-size: 0.86rem;
+  line-height: 1.85;
+  font-family: inherit;
+  max-height: 60vh;
+  overflow-y: auto;
 }
 </style>

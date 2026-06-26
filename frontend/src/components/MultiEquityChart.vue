@@ -3,11 +3,24 @@ import { computed } from 'vue'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent, LegendComponent, MarkLineComponent } from 'echarts/components'
+import {
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  MarkLineComponent,
+} from 'echarts/components'
 import VChart from 'vue-echarts'
 import { ECHARTS_BASE_OPTIONS, CHART_THEME } from '@/lib/chartTheme'
+import { formatDateYmd } from '@/lib/format'
 
-use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent, MarkLineComponent])
+use([
+  CanvasRenderer,
+  LineChart,
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  MarkLineComponent,
+])
 
 export interface NavSeries {
   id: string
@@ -41,11 +54,9 @@ const option = computed(() => ({
     textStyle: { ...ECHARTS_BASE_OPTIONS.tooltip.textStyle, fontSize: 12 },
     formatter: (params: { seriesName: string; data: [number, number]; marker: string }[]) => {
       if (!params?.length) return ''
-      const date = new Date(params[0].data[0]).toISOString().slice(0, 10)
+      const date = formatDateYmd(new Date(params[0].data[0]))
       // 用 echarts 內建 marker（顏色即系列實際顏色），確保與線、legend 一致
-      const lines = params.map(
-        (p) => `${p.marker}${p.seriesName}: $${p.data[1].toFixed(3)}`,
-      )
+      const lines = params.map((p) => `${p.marker}${p.seriesName}: $${p.data[1].toFixed(3)}`)
       return `<div style="font-size:11px;color:${CHART_THEME.textColorMuted}">${date}</div>${lines.join('<br>')}`
     },
   },
@@ -90,7 +101,12 @@ const option = computed(() => ({
             silent: true,
             symbol: 'none',
             lineStyle: { color: CHART_THEME.crosshairColor, width: 1, type: 'dashed' },
-            label: { show: true, formatter: '$1.00', color: CHART_THEME.crosshairColor, fontSize: 9 },
+            label: {
+              show: true,
+              formatter: '$1.00',
+              color: CHART_THEME.crosshairColor,
+              fontSize: 9,
+            },
             data: [{ yAxis: 1.0 }],
           }
         : undefined,

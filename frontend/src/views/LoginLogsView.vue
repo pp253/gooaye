@@ -25,8 +25,11 @@ const totalPages = computed(() => Math.ceil(totalCount.value / pageSize) || 1)
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleString('zh-TW', {
     timeZone: 'Asia/Taipei',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
   })
 }
 
@@ -72,13 +75,11 @@ async function onEmailChange() {
 onMounted(async () => {
   // Load email lists for dropdown filtering
   const emailSet = new Set<string>()
-  
+
   // 1. Get from allowed_emails
-  const { data: members } = await supabase
-    .from('allowed_emails')
-    .select('email')
+  const { data: members } = await supabase.from('allowed_emails').select('email')
   if (members) {
-    members.forEach(m => emailSet.add(m.email.toLowerCase()))
+    members.forEach((m) => emailSet.add(m.email.toLowerCase()))
   }
 
   // 2. Get from recent login logs (in case some members were deleted but logs still exist)
@@ -88,7 +89,7 @@ onMounted(async () => {
     .order('logged_in_at', { ascending: false })
     .limit(100)
   if (recentLogs) {
-    recentLogs.forEach(l => emailSet.add(l.email.toLowerCase()))
+    recentLogs.forEach((l) => emailSet.add(l.email.toLowerCase()))
   }
 
   emails.value = Array.from(emailSet).sort()
@@ -142,7 +143,7 @@ onMounted(async () => {
       </div>
 
       <!-- Pagination Component -->
-      <div class="pagination-bar" v-if="totalPages > 1">
+      <div v-if="totalPages > 1" class="pagination-bar">
         <BaseChip :disabled="page === 1" @click="changePage(page - 1)">上一頁</BaseChip>
         <span class="page-info">第 {{ page }} / {{ totalPages }} 頁 (共 {{ totalCount }} 筆)</span>
         <BaseChip :disabled="page >= totalPages" @click="changePage(page + 1)">下一頁</BaseChip>
@@ -152,8 +153,16 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.logs-page { max-width: 720px; margin: 0 auto; padding-bottom: 6rem; }
-.time { color: #a0aec0; font-variant-numeric: tabular-nums; font-size: 0.84rem; }
+.logs-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding-bottom: 6rem;
+}
+.time {
+  color: #a0aec0;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.84rem;
+}
 
 .log-controls {
   display: flex;

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-const props = withDefaults(
-  defineProps<{ values: number[]; width?: number; height?: number }>(),
-  { width: 96, height: 28 },
-)
+const props = withDefaults(defineProps<{ values: number[]; width?: number; height?: number }>(), {
+  width: 96,
+  height: 28,
+})
 
 const PAD = 2
 
@@ -34,13 +34,31 @@ const color = computed(() => (up.value ? '#68d391' : '#fc8181'))
 </script>
 
 <template>
-  <svg v-if="path" :viewBox="`0 0 ${width} ${height}`" :width="width" :height="height" class="spark">
-    <path :d="path" :stroke="color" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+  <svg
+    v-if="path"
+    :viewBox="`0 0 ${width} ${height}`"
+    :width="width"
+    :height="height"
+    class="spark"
+  >
+    <path
+      :d="path"
+      :stroke="color"
+      fill="none"
+      stroke-width="1.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
   </svg>
   <span v-else class="spark-empty">—</span>
 </template>
 
 <style scoped>
-.spark { display: block; }
-.spark-empty { color: #4a5568; font-size: 0.8rem; }
+.spark {
+  display: block;
+}
+.spark-empty {
+  color: #4a5568;
+  font-size: 0.8rem;
+}
 </style>

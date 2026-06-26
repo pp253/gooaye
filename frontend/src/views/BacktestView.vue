@@ -12,18 +12,35 @@ import BaseChip from '@/components/BaseChip.vue'
 import BaseInput from '@/components/BaseInput.vue'
 
 interface Scope {
-  scope: string; n_trades: number; win_rate?: number; avg_return?: number
-  median_return?: number; avg_bm_return?: number | null
-  avg_alpha?: number | null; beat_bm_rate?: number | null
+  scope: string
+  n_trades: number
+  win_rate?: number
+  avg_return?: number
+  median_return?: number
+  avg_bm_return?: number | null
+  avg_alpha?: number | null
+  beat_bm_rate?: number | null
 }
 interface TradeRow {
-  ticker: string; name_zh: string; market: string; ep_date: string
-  entry_date: string; exit_date: string; ret: number
-  bm_ret: number | null; alpha: number | null
+  ticker: string
+  name_zh: string
+  market: string
+  ep_date: string
+  entry_date: string
+  exit_date: string
+  ret: number
+  bm_ret: number | null
+  alpha: number | null
 }
-interface DailyBlock { dates: string[]; nav: number[]; bm_nav: number[] | null }
+interface DailyBlock {
+  dates: string[]
+  nav: number[]
+  bm_nav: number[] | null
+}
 interface Strategy {
-  id: string; label: string; scopes: Scope[]
+  id: string
+  label: string
+  scopes: Scope[]
   trades?: TradeRow[]
   /** 後端日頻 NAV（每市場一條），前端切片重設基準後算 Sharpe/MDD/CAGR */
   daily?: Record<string, DailyBlock>
@@ -32,12 +49,22 @@ interface Strategy {
   /** 邊際真實性檢驗：嚴格對標 + 因子(市場/半導體)beta 拆解（美股、全期） */
   factor?: {
     vs: Record<string, { n: number; avg_alpha: number; beat_rate: number } | null>
-    decomp: { n: number; alpha_ann: number; beta_mkt: number; beta_semis: number; r2: number | null } | null
+    decomp: {
+      n: number
+      alpha_ann: number
+      beta_mkt: number
+      beta_semis: number
+      r2: number | null
+    } | null
   }
 }
 interface HitRow {
-  horizon: number; n: number; pct_positive?: number
-  avg_return?: number; avg_alpha?: number | null; beat_bm_rate?: number | null
+  horizon: number
+  n: number
+  pct_positive?: number
+  avg_return?: number
+  avg_alpha?: number | null
+  beat_bm_rate?: number | null
 }
 
 const loading = ref(true)
@@ -51,6 +78,11 @@ const dateMin = ref('')
 const dateMax = ref('')
 const filterFrom = ref('')
 const filterTo = ref('')
+
+function resetDateRange() {
+  filterFrom.value = dateMin.value
+  filterTo.value = dateMax.value
+}
 
 // 全局篩選
 const selectedMarket = ref<'ALL' | 'TW' | 'US'>('ALL')
@@ -89,14 +121,15 @@ onMounted(async () => {
       searchQuery.value[st.id] = ''
       tradeResultFilter.value[st.id] = 'ALL'
     }
-    if (!strategies.value.some(s => s.id === featuredId.value)) {
+    if (!strategies.value.some((s) => s.id === featuredId.value)) {
       featuredId.value = strategies.value[0]?.id ?? 'S1'
     }
 
     // 從 trades 推算可用日期範圍
     const allDates = (r.strategies ?? [])
       .flatMap((s: Strategy) => (s.trades ?? []).map((t: TradeRow) => t.ep_date))
-      .filter(Boolean).sort()
+      .filter(Boolean)
+      .sort()
     if (allDates.length) {
       dateMin.value = allDates[0]
       dateMax.value = allDates[allDates.length - 1]
@@ -125,20 +158,20 @@ onMounted(async () => {
 
 // 客戶端重算聚合（依 ep_date 篩選後的 trades）
 function aggregate(trades: TradeRow[], scope: string) {
-  const sel = scope === 'ALL' ? trades : trades.filter(t => t.market === scope)
+  const sel = scope === 'ALL' ? trades : trades.filter((t) => t.market === scope)
   if (!sel.length) return { scope, n_trades: 0 }
-  const rets = sel.map(t => t.ret)
-  const withBm = sel.filter(t => t.bm_ret !== null && t.bm_ret !== undefined)
-  const alphas = withBm.map(t => t.ret - t.bm_ret!)
+  const rets = sel.map((t) => t.ret)
+  const withBm = sel.filter((t) => t.bm_ret !== null && t.bm_ret !== undefined)
+  const alphas = withBm.map((t) => t.ret - t.bm_ret!)
   const mean = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / arr.length
   return {
     scope,
     n_trades: sel.length,
-    win_rate: rets.filter(r => r > 0).length / rets.length,
+    win_rate: rets.filter((r) => r > 0).length / rets.length,
     avg_return: mean(rets),
-    avg_bm_return: withBm.length ? mean(withBm.map(t => t.bm_ret!)) : null,
+    avg_bm_return: withBm.length ? mean(withBm.map((t) => t.bm_ret!)) : null,
     avg_alpha: alphas.length ? mean(alphas) : null,
-    beat_bm_rate: alphas.length ? alphas.filter(a => a > 0).length / alphas.length : null,
+    beat_bm_rate: alphas.length ? alphas.filter((a) => a > 0).length / alphas.length : null,
   }
 }
 
@@ -154,10 +187,10 @@ function slicedDaily(st: Strategy, scope: string) {
   if (idx.length < 2) return { curve: [], bmCurve: [] }
   const base = d.nav[idx[0]] || 1
   const bmBase = d.bm_nav ? d.bm_nav[idx[0]] || 1 : null
-  const curve = idx.map(i => ({ date: d.dates[i], value: +(d.nav[i] / base).toFixed(4) }))
+  const curve = idx.map((i) => ({ date: d.dates[i], value: +(d.nav[i] / base).toFixed(4) }))
   const bmCurve =
     d.bm_nav && bmBase
-      ? idx.map(i => ({ date: d.dates[i], value: +(d.bm_nav![i] / bmBase).toFixed(4) }))
+      ? idx.map((i) => ({ date: d.dates[i], value: +(d.bm_nav![i] / bmBase).toFixed(4) }))
       : []
   return { curve, bmCurve }
 }
@@ -234,26 +267,29 @@ function getYearlyStats(trades: TradeRow[]) {
     if (!byYear[year]) byYear[year] = []
     byYear[year].push(t)
   }
-  return Object.keys(byYear).sort().map(year => ({
-    year,
-    ...aggregate(byYear[year], 'ALL')
-  }))
+  return Object.keys(byYear)
+    .sort()
+    .map((year) => ({
+      year,
+      ...aggregate(byYear[year], 'ALL'),
+    }))
 }
 
 const filteredStrategies = computed(() =>
-  strategies.value.map(st => {
+  strategies.value.map((st) => {
     // 依全局日期與市場篩選
     const trades = (st.trades ?? []).filter(
-      t => t.ep_date >= filterFrom.value && 
-           t.ep_date <= filterTo.value &&
-           (selectedMarket.value === 'ALL' || t.market === selectedMarket.value),
+      (t) =>
+        t.ep_date >= filterFrom.value &&
+        t.ep_date <= filterTo.value &&
+        (selectedMarket.value === 'ALL' || t.market === selectedMarket.value),
     )
     const streaks = computeStreaks(trades)
     const { curve, bmCurve } = slicedDaily(st, selectedMarket.value)
     return {
       ...st,
       _trades: trades,
-      _scopes: ['ALL', 'TW', 'US'].map(sc => aggregate(trades, sc)),
+      _scopes: ['ALL', 'TW', 'US'].map((sc) => aggregate(trades, sc)),
       _curve: curve,
       _bmCurve: bmCurve,
       _mdd: computeMdd(curve),
@@ -268,23 +304,24 @@ const filteredStrategies = computed(() =>
 
 // 主要策略數據（給 Hero 指標卡使用，可由使用者切換）
 const featured = computed(
-  () => filteredStrategies.value.find(s => s.id === featuredId.value) ?? filteredStrategies.value[0],
+  () =>
+    filteredStrategies.value.find((s) => s.id === featuredId.value) ?? filteredStrategies.value[0],
 )
-const featScopeAll = computed(() => featured.value?._scopes.find(sc => sc.scope === 'ALL'))
-const featScopeTw = computed(() => featured.value?._scopes.find(sc => sc.scope === 'TW'))
-const featScopeUs = computed(() => featured.value?._scopes.find(sc => sc.scope === 'US'))
+const featScopeAll = computed(() => featured.value?._scopes.find((sc) => sc.scope === 'ALL'))
+const featScopeTw = computed(() => featured.value?._scopes.find((sc) => sc.scope === 'TW'))
+const featScopeUs = computed(() => featured.value?._scopes.find((sc) => sc.scope === 'US'))
 
 // 主要策略「目前建議」：受市場篩選與「只看可買進」開關影響（不受日期區間影響，因為是當下持倉）
 const featuredRecs = computed(() => {
   const recs = featured.value?.recommendations ?? []
   return recs.filter(
-    r =>
+    (r) =>
       (selectedMarket.value === 'ALL' || r.market === selectedMarket.value) &&
       (!recFreshOnly.value || r.fresh),
   )
 })
-const featuredBuyCount = computed(() => featuredRecs.value.filter(r => r.fresh).length)
-const featuredHoldCount = computed(() => featuredRecs.value.filter(r => !r.fresh).length)
+const featuredBuyCount = computed(() => featuredRecs.value.filter((r) => r.fresh).length)
+const featuredHoldCount = computed(() => featuredRecs.value.filter((r) => !r.fresh).length)
 
 // 主要策略的邊際真實性檢驗（美股、全期，不隨日期/市場篩選變動）
 const featuredFactor = computed(() => featured.value?.factor)
@@ -311,19 +348,23 @@ const factorVerdict = computed(() => {
 
 // 各策略配色（線色與 legend 圖示共用，確保一致）
 const STRAT_COLORS: Record<string, string> = {
-  S1: '#63b3ed', S2: '#f6ad55', S3: '#68d391',
-  S4: '#b794f4', S5: '#f687b3', S6: '#4fd1c5',
+  S1: '#63b3ed',
+  S2: '#f6ad55',
+  S3: '#68d391',
+  S4: '#b794f4',
+  S5: '#f687b3',
+  S6: '#4fd1c5',
 }
 
 const chartSeries = computed(() => {
   const colors = STRAT_COLORS
-  const seriesList = filteredStrategies.value.map(st => ({
+  const seriesList = filteredStrategies.value.map((st) => ({
     id: st.id,
     label: `${st.id} ${st.label}`,
     color: colors[st.id] || '#cbd5e0',
     data: st._curve,
   }))
-  
+
   const s1 = filteredStrategies.value[0]
   if (s1 && s1._bmCurve?.length) {
     seriesList.push({
@@ -338,10 +379,12 @@ const chartSeries = computed(() => {
 
 // 每個策略展開交易清單
 const expanded = ref<Record<string, boolean>>({})
-function toggle(id: string) { expanded.value[id] = !expanded.value[id] }
+function toggle(id: string) {
+  expanded.value[id] = !expanded.value[id]
+}
 
 function topBottomBy(trades: TradeRow[], key: 'ret' | 'alpha', n = 5) {
-  const valid = trades.filter(t => t[key] !== null && t[key] !== undefined)
+  const valid = trades.filter((t) => t[key] !== null && t[key] !== undefined)
   const sorted = [...valid].sort((a, b) => (b[key] as number) - (a[key] as number))
   return { top: sorted.slice(0, n), bottom: sorted.slice(-n).reverse() }
 }
@@ -356,8 +399,8 @@ function getDaysBetween(from: string, to: string): number {
 function getFilteredTrades(stId: string, trades: TradeRow[]) {
   const q = searchQuery.value[stId]?.trim().toLowerCase()
   const resF = tradeResultFilter.value[stId]
-  
-  return trades.filter(t => {
+
+  return trades.filter((t) => {
     if (q) {
       const matchTicker = t.ticker.toLowerCase().includes(q)
       const matchName = t.name_zh.toLowerCase().includes(q)
@@ -390,10 +433,10 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
         <div class="filter-group">
           <span class="filter-label">市場篩選</span>
           <div class="filter-pills">
-            <BaseChip 
-              v-for="m in ['ALL', 'TW', 'US'] as const" 
-              :key="m" 
-              :active="selectedMarket === m" 
+            <BaseChip
+              v-for="m in ['ALL', 'TW', 'US'] as const"
+              :key="m"
+              :active="selectedMarket === m"
               @click="selectedMarket = m"
             >
               {{ m === 'ALL' ? '全部' : m === 'TW' ? '台股' : '美股' }}
@@ -404,10 +447,22 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
         <div class="filter-group">
           <span class="filter-label">回測區間</span>
           <div class="date-range-picker">
-            <BaseInput type="date" v-model="filterFrom" :min="dateMin" :max="filterTo" class="date-input-field" />
+            <BaseInput
+              v-model="filterFrom"
+              type="date"
+              :min="dateMin"
+              :max="filterTo"
+              class="date-input-field"
+            />
             <span class="filter-sep">—</span>
-            <BaseInput type="date" v-model="filterTo" :min="filterFrom" :max="dateMax" class="date-input-field" />
-            <BaseChip class="reset-btn" @click="filterFrom = dateMin; filterTo = dateMax">全部區間</BaseChip>
+            <BaseInput
+              v-model="filterTo"
+              type="date"
+              :min="filterFrom"
+              :max="dateMax"
+              class="date-input-field"
+            />
+            <BaseChip class="reset-btn" @click="resetDateRange">全部區間</BaseChip>
           </div>
         </div>
 
@@ -424,7 +479,9 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
             v-for="st in filteredStrategies"
             :key="'feat-' + st.id"
             :active="featuredId === st.id"
-            :style="featuredId === st.id ? { background: STRAT_COLORS[st.id], color: '#0d1117' } : {}"
+            :style="
+              featuredId === st.id ? { background: STRAT_COLORS[st.id], color: '#0d1117' } : {}
+            "
             @click="featuredId = st.id"
           >
             {{ st.id }}
@@ -440,12 +497,13 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
           :value="rate(featScopeAll?.win_rate)"
           :secondary="[
             { label: '最長連勝', value: `${featured?._maxWin ?? 0}次`, color: '#68d391' },
-            { label: '最長連敗', value: `${featured?._maxLose ?? 0}次`, color: '#fc8181' }
+            { label: '最長連敗', value: `${featured?._maxLose ?? 0}次`, color: '#fc8181' },
           ]"
-          hasTip
+          has-tip
         >
           <template #tip>
-            <strong>跟單勝率</strong>：依該策略規則進出場，獲利為正的交易比例。下方顯示最長連續獲利與虧損的交易次數。
+            <strong>跟單勝率</strong
+            >：依該策略規則進出場，獲利為正的交易比例。下方顯示最長連續獲利與虧損的交易次數。
           </template>
         </KpiCard>
 
@@ -454,13 +512,22 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
           :value="pct(featScopeAll?.avg_alpha)"
           :color="retColor(featScopeAll?.avg_alpha)"
           :secondary="[
-            { label: '台股', value: pct(featScopeTw?.avg_alpha), color: retColor(featScopeTw?.avg_alpha) },
-            { label: '美股', value: pct(featScopeUs?.avg_alpha), color: retColor(featScopeUs?.avg_alpha) }
+            {
+              label: '台股',
+              value: pct(featScopeTw?.avg_alpha),
+              color: retColor(featScopeTw?.avg_alpha),
+            },
+            {
+              label: '美股',
+              value: pct(featScopeUs?.avg_alpha),
+              color: retColor(featScopeUs?.avg_alpha),
+            },
           ]"
-          hasTip
+          has-tip
         >
           <template #tip>
-            <strong>超額報酬 (α)</strong>：跟單報酬減去基準大盤報酬（台股基準：0050；美股基準：SPY）。正值代表打敗大盤。
+            <strong>超額報酬 (α)</strong
+            >：跟單報酬減去基準大盤報酬（台股基準：0050；美股基準：SPY）。正值代表打敗大盤。
           </template>
         </KpiCard>
 
@@ -469,10 +536,12 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
           :value="pct(featured?._mdd)"
           color="#fc8181"
           subtitle="風控與策略壓力指標"
-          hasTip
+          has-tip
         >
           <template #tip>
-            <strong>最大回撤 (MDD)</strong>：由日頻投組淨值計算（含持倉期間的浮動回撤），帳戶從最高峰回落至最低谷底的最大幅度。越接近 0 代表抗跌能力越強。
+            <strong>最大回撤 (MDD)</strong
+            >：由日頻投組淨值計算（含持倉期間的浮動回撤），帳戶從最高峰回落至最低谷底的最大幅度。越接近
+            0 代表抗跌能力越強。
           </template>
         </KpiCard>
 
@@ -481,10 +550,12 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
           :value="featured?._sharpe != null ? featured._sharpe.toFixed(2) : '—'"
           :color="featured?._sharpe && featured._sharpe > 1 ? '#68d391' : '#f6ad55'"
           subtitle="每承擔一單位風險的超額"
-          hasTip
+          has-tip
         >
           <template #tip>
-            <strong>Sharpe Ratio (夏普值)</strong>：由投組淨值的週期報酬計算（依實際取樣頻率年化，含現金空檔）。通常大於 1 代表這套策略的「CP值」相當優異。
+            <strong>Sharpe Ratio (夏普值)</strong
+            >：由投組淨值的週期報酬計算（依實際取樣頻率年化，含現金空檔）。通常大於 1
+            代表這套策略的「CP值」相當優異。
           </template>
         </KpiCard>
 
@@ -493,10 +564,12 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
           :value="pct(featured?._cagr)"
           :color="retColor(featured?._cagr)"
           subtitle="日頻淨值年化複合"
-          hasTip
+          has-tip
         >
           <template #tip>
-            <strong>CAGR (年化複合報酬)</strong>：由日頻投組淨值序列，依篩選區間首尾與實際天數年化。已扣交易成本，含資金上限（最多同時持 10 檔）與現金空檔。
+            <strong>CAGR (年化複合報酬)</strong
+            >：由日頻投組淨值序列，依篩選區間首尾與實際天數年化。已扣交易成本，含資金上限（最多同時持
+            10 檔）與現金空檔。
           </template>
         </KpiCard>
       </section>
@@ -516,18 +589,34 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
             <div class="table-wrap">
               <table class="app-table bt-table small">
                 <thead>
-                  <tr><th>對標</th><th class="num">平均超額 α</th><th class="num">贏面</th><th class="num">樣本</th></tr>
+                  <tr>
+                    <th>對標</th>
+                    <th class="num">平均超額 α</th>
+                    <th class="num">贏面</th>
+                    <th class="num">樣本</th>
+                  </tr>
                 </thead>
                 <tbody>
                   <tr v-for="tic in ['SPY', 'QQQ', 'SOXX']" :key="tic">
                     <td>
                       {{ tic }}
-                      <span class="bm-note">{{ tic === 'SPY' ? '大盤' : tic === 'QQQ' ? '科技' : '費半（最嚴）' }}</span>
+                      <span class="bm-note">{{
+                        tic === 'SPY' ? '大盤' : tic === 'QQQ' ? '科技' : '費半（最嚴）'
+                      }}</span>
                     </td>
-                    <td class="num" :style="{ color: retColor(featuredFactor?.vs?.[tic]?.avg_alpha) }">
-                      <strong>{{ featuredFactor?.vs?.[tic] ? pct(featuredFactor.vs[tic]!.avg_alpha) : '—' }}</strong>
+                    <td
+                      class="num"
+                      :style="{ color: retColor(featuredFactor?.vs?.[tic]?.avg_alpha) }"
+                    >
+                      <strong>{{
+                        featuredFactor?.vs?.[tic] ? pct(featuredFactor.vs[tic]!.avg_alpha) : '—'
+                      }}</strong>
                     </td>
-                    <td class="num">{{ featuredFactor?.vs?.[tic] ? rate(featuredFactor.vs[tic]!.beat_rate) : '—' }}</td>
+                    <td class="num">
+                      {{
+                        featuredFactor?.vs?.[tic] ? rate(featuredFactor.vs[tic]!.beat_rate) : '—'
+                      }}
+                    </td>
                     <td class="num muted">{{ featuredFactor?.vs?.[tic]?.n ?? '—' }}</td>
                   </tr>
                 </tbody>
@@ -544,19 +633,29 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
               </div>
               <div class="decomp-card">
                 <div class="decomp-label">對費半 β</div>
-                <div class="decomp-val" :class="{ hot: (featuredFactor?.decomp?.beta_semis ?? 0) >= 0.4 }">
+                <div
+                  class="decomp-val"
+                  :class="{ hot: (featuredFactor?.decomp?.beta_semis ?? 0) >= 0.4 }"
+                >
                   {{ featuredFactor?.decomp?.beta_semis?.toFixed(2) }}
                 </div>
               </div>
               <div class="decomp-card">
                 <div class="decomp-label">殘餘真 α（年化）</div>
-                <div class="decomp-val" :style="{ color: retColor(featuredFactor?.decomp?.alpha_ann) }">
+                <div
+                  class="decomp-val"
+                  :style="{ color: retColor(featuredFactor?.decomp?.alpha_ann) }"
+                >
                   {{ pct(featuredFactor?.decomp?.alpha_ann) }}
                 </div>
               </div>
               <div class="decomp-card">
                 <div class="decomp-label">R²（beta 解釋度）</div>
-                <div class="decomp-val">{{ featuredFactor?.decomp?.r2 != null ? featuredFactor.decomp.r2.toFixed(2) : '—' }}</div>
+                <div class="decomp-val">
+                  {{
+                    featuredFactor?.decomp?.r2 != null ? featuredFactor.decomp.r2.toFixed(2) : '—'
+                  }}
+                </div>
               </div>
             </div>
           </div>
@@ -575,21 +674,25 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
         </p>
         <div class="rec-controls">
           <label class="fresh-toggle">
-            <input type="checkbox" v-model="recFreshOnly" />
+            <input v-model="recFreshOnly" type="checkbox" />
             只看可買進（訊號 ≤14 天）
           </label>
           <span class="rec-count">
-            可買 <strong class="buy-hint">{{ featuredBuyCount }}</strong> 檔 ・
-            續抱 <strong>{{ featuredHoldCount }}</strong> 檔
+            可買 <strong class="buy-hint">{{ featuredBuyCount }}</strong> 檔 ・ 續抱
+            <strong>{{ featuredHoldCount }}</strong> 檔
           </span>
         </div>
-        <RecommendationList :recs="featuredRecs" :tickerMap="tickerToIdMap" />
+        <RecommendationList :recs="featuredRecs" :ticker-map="tickerToIdMap" />
       </section>
 
       <!-- 三策略 NAV 淨值合圖 -->
       <section class="strat chart-section">
         <h2 class="chart-section-title">📈 策略 NAV 淨值走勢對比（複利）</h2>
-        <p class="strat-desc">初始資金 $1.00，資金均分為 10 個部位（最多同時持 10 檔），逐日以收盤 mark-to-market 之投組淨值，已扣交易成本。基準為買進持有台股 (0050) / 美股 (SPY)；「全部」為依交易數加權混合。曲線依上方篩選區間重設基準。</p>
+        <p class="strat-desc">
+          初始資金 $1.00，資金均分為 10 個部位（最多同時持 10 檔），逐日以收盤 mark-to-market
+          之投組淨值，已扣交易成本。基準為買進持有台股 (0050) / 美股
+          (SPY)；「全部」為依交易數加權混合。曲線依上方篩選區間重設基準。
+        </p>
         <div class="multi-curve-wrap">
           <MultiEquityChart :series="chartSeries" :height="240" />
         </div>
@@ -598,9 +701,15 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
       <!-- 年度超額報酬 (α) 對比 (New Feature) -->
       <section class="strat chart-section">
         <h2 class="chart-section-title">📆 策略年度績效明細</h2>
-        <p class="strat-desc">查看各策略在不同年份內，經過市場篩選後的交易數量、勝率與超額報酬 α 表現。</p>
+        <p class="strat-desc">
+          查看各策略在不同年份內，經過市場篩選後的交易數量、勝率與超額報酬 α 表現。
+        </p>
         <div class="yearly-comparison">
-          <div v-for="st in filteredStrategies" :key="'yearly-' + st.id" class="yearly-strategy-card">
+          <div
+            v-for="st in filteredStrategies"
+            :key="'yearly-' + st.id"
+            class="yearly-strategy-card"
+          >
             <div class="yearly-strat-title">
               <span class="sid">{{ st.id }}</span> {{ st.label }}
             </div>
@@ -621,11 +730,15 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
                     <td>{{ y.year }} 年</td>
                     <td class="num">{{ y.n_trades }}</td>
                     <td class="num">{{ rate(y.win_rate) }}</td>
-                    <td class="num" :style="{ color: retColor(y.avg_return) }">{{ pct(y.avg_return) }}</td>
-                    <td class="num" :style="{ color: retColor(y.avg_alpha) }"><strong>{{ pct(y.avg_alpha) }}</strong></td>
+                    <td class="num" :style="{ color: retColor(y.avg_return) }">
+                      {{ pct(y.avg_return) }}
+                    </td>
+                    <td class="num" :style="{ color: retColor(y.avg_alpha) }">
+                      <strong>{{ pct(y.avg_alpha) }}</strong>
+                    </td>
                     <td class="num">{{ rate(y.beat_bm_rate) }}</td>
                   </tr>
-                  <tr v-if="!(st._yearly?.length)">
+                  <tr v-if="!st._yearly?.length">
                     <td colspan="6" class="empty-td">目前篩選條件下無年度交易數據</td>
                   </tr>
                 </tbody>
@@ -638,23 +751,36 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
       <!-- 命中率統計視覺化 -->
       <section class="strat chart-section">
         <h2 class="chart-section-title">🎯 「看多」訊號持有天數命中率</h2>
-        <p class="strat-desc">探討：被點名「看多」之後，持有 30 / 60 / 90 天的上漲勝率與打敗基準的機率。</p>
+        <p class="strat-desc">
+          探討：被點名「看多」之後，持有 30 / 60 / 90 天的上漲勝率與打敗基準的機率。
+        </p>
         <div class="hit-rate-container">
           <div class="hit-rate-chart-wrap">
-            <HitRateChart :hitRate="hitRate" />
+            <HitRateChart :hit-rate="hitRate" />
           </div>
           <div class="hit-rate-table-wrap">
             <table class="app-table bt-table small">
               <thead>
-                <tr><th>持有天數</th><th>樣本數</th><th>上漲比例</th><th>平均報酬</th><th>超額(α)</th><th>贏大盤率</th></tr>
+                <tr>
+                  <th>持有天數</th>
+                  <th>樣本數</th>
+                  <th>上漲比例</th>
+                  <th>平均報酬</th>
+                  <th>超額(α)</th>
+                  <th>贏大盤率</th>
+                </tr>
               </thead>
               <tbody>
                 <tr v-for="h in hitRate" :key="h.horizon">
                   <td>{{ h.horizon }} 天</td>
                   <td class="num">{{ h.n || '—' }}</td>
                   <td class="num">{{ rate(h.pct_positive) }}</td>
-                  <td class="num" :style="{ color: retColor(h.avg_return) }">{{ pct(h.avg_return) }}</td>
-                  <td class="num" :style="{ color: retColor(h.avg_alpha) }">{{ pct(h.avg_alpha) }}</td>
+                  <td class="num" :style="{ color: retColor(h.avg_return) }">
+                    {{ pct(h.avg_return) }}
+                  </td>
+                  <td class="num" :style="{ color: retColor(h.avg_alpha) }">
+                    {{ pct(h.avg_alpha) }}
+                  </td>
                   <td class="num">{{ rate(h.beat_bm_rate) }}</td>
                 </tr>
               </tbody>
@@ -668,9 +794,15 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
 
       <section v-for="st in filteredStrategies" :key="st.id" class="strat details-card">
         <div class="strat-header-row">
-          <h3 class="strat-title"><span class="sid">{{ st.id }}</span> {{ st.label }}</h3>
+          <h3 class="strat-title">
+            <span class="sid">{{ st.id }}</span> {{ st.label }}
+          </h3>
           <button class="expand-btn-text" @click="toggle(st.id)">
-            {{ expanded[st.id] ? '收合明細 ▲' : `展開交易明細（${getFilteredTrades(st.id, st._trades).length} 筆）▼` }}
+            {{
+              expanded[st.id]
+                ? '收合明細 ▲'
+                : `展開交易明細（${getFilteredTrades(st.id, st._trades).length} 筆）▼`
+            }}
           </button>
         </div>
 
@@ -679,8 +811,13 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
           <table class="app-table bt-table">
             <thead>
               <tr>
-                <th>範圍</th><th>交易數</th><th>勝率</th><th>平均報酬</th>
-                <th>基準報酬</th><th>超額(α)</th><th>贏基準比例</th>
+                <th>範圍</th>
+                <th>交易數</th>
+                <th>勝率</th>
+                <th>平均報酬</th>
+                <th>基準報酬</th>
+                <th>超額(α)</th>
+                <th>贏基準比例</th>
               </tr>
             </thead>
             <tbody>
@@ -688,9 +825,13 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
                 <td>{{ scopeLabel[sc.scope] }}</td>
                 <td class="num">{{ sc.n_trades || '—' }}</td>
                 <td class="num">{{ rate(sc.win_rate) }}</td>
-                <td class="num" :style="{ color: retColor(sc.avg_return) }">{{ pct(sc.avg_return) }}</td>
+                <td class="num" :style="{ color: retColor(sc.avg_return) }">
+                  {{ pct(sc.avg_return) }}
+                </td>
                 <td class="num muted">{{ pct(sc.avg_bm_return) }}</td>
-                <td class="num" :style="{ color: retColor(sc.avg_alpha) }"><strong>{{ pct(sc.avg_alpha) }}</strong></td>
+                <td class="num" :style="{ color: retColor(sc.avg_alpha) }">
+                  <strong>{{ pct(sc.avg_alpha) }}</strong>
+                </td>
                 <td class="num">{{ rate(sc.beat_bm_rate) }}</td>
               </tr>
             </tbody>
@@ -702,8 +843,16 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
           <div class="performers">
             <div class="perf-col">
               <div class="perf-head win">最佳 5 檔超額 (α)</div>
-              <div v-for="t in topBottomBy(st._trades, 'alpha').top" :key="t.ticker + t.entry_date" class="perf-row">
-                <router-link v-if="tickerToIdMap[t.ticker]" :to="`/stocks/${tickerToIdMap[t.ticker]}`" class="perf-ticker">
+              <div
+                v-for="t in topBottomBy(st._trades, 'alpha').top"
+                :key="t.ticker + t.entry_date"
+                class="perf-row"
+              >
+                <router-link
+                  v-if="tickerToIdMap[t.ticker]"
+                  :to="`/stocks/${tickerToIdMap[t.ticker]}`"
+                  class="perf-ticker"
+                >
                   {{ t.ticker }}
                 </router-link>
                 <span v-else class="perf-ticker">{{ t.ticker }}</span>
@@ -713,8 +862,16 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
             </div>
             <div class="perf-col">
               <div class="perf-head loss">最差 5 檔超額 (α)</div>
-              <div v-for="t in topBottomBy(st._trades, 'alpha').bottom" :key="t.ticker + t.entry_date" class="perf-row">
-                <router-link v-if="tickerToIdMap[t.ticker]" :to="`/stocks/${tickerToIdMap[t.ticker]}`" class="perf-ticker">
+              <div
+                v-for="t in topBottomBy(st._trades, 'alpha').bottom"
+                :key="t.ticker + t.entry_date"
+                class="perf-row"
+              >
+                <router-link
+                  v-if="tickerToIdMap[t.ticker]"
+                  :to="`/stocks/${tickerToIdMap[t.ticker]}`"
+                  class="perf-ticker"
+                >
                   {{ t.ticker }}
                 </router-link>
                 <span v-else class="perf-ticker">{{ t.ticker }}</span>
@@ -728,30 +885,30 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
         <!-- 交易清單展開區域 -->
         <div v-show="expanded[st.id]" class="trade-log-wrap">
           <div class="trade-filter-bar">
-            <BaseInput 
-              type="text" 
-              v-model="searchQuery[st.id]" 
-              placeholder="搜尋代號或名稱..." 
-              class="trade-search-input" 
+            <BaseInput
+              v-model="searchQuery[st.id]"
+              type="text"
+              placeholder="搜尋代號或名稱..."
+              class="trade-search-input"
             />
             <div class="trade-filter-pills">
-              <BaseChip 
+              <BaseChip
                 class="small"
-                :active="tradeResultFilter[st.id] === 'ALL'" 
+                :active="tradeResultFilter[st.id] === 'ALL'"
                 @click="tradeResultFilter[st.id] = 'ALL'"
               >
                 全部交易
               </BaseChip>
-              <BaseChip 
+              <BaseChip
                 class="small"
-                :active="tradeResultFilter[st.id] === 'WIN'" 
+                :active="tradeResultFilter[st.id] === 'WIN'"
                 @click="tradeResultFilter[st.id] = 'WIN'"
               >
                 獲利
               </BaseChip>
-              <BaseChip 
+              <BaseChip
                 class="small"
-                :active="tradeResultFilter[st.id] === 'LOSS'" 
+                :active="tradeResultFilter[st.id] === 'LOSS'"
                 @click="tradeResultFilter[st.id] = 'LOSS'"
               >
                 虧損
@@ -777,9 +934,16 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="t in getFilteredTrades(st.id, st._trades)" :key="t.ticker + t.entry_date">
+                <tr
+                  v-for="t in getFilteredTrades(st.id, st._trades)"
+                  :key="t.ticker + t.entry_date"
+                >
                   <td>
-                    <router-link v-if="tickerToIdMap[t.ticker]" :to="`/stocks/${tickerToIdMap[t.ticker]}`" class="ticker-link">
+                    <router-link
+                      v-if="tickerToIdMap[t.ticker]"
+                      :to="`/stocks/${tickerToIdMap[t.ticker]}`"
+                      class="ticker-link"
+                    >
                       <span class="ticker">{{ t.ticker }}</span>
                     </router-link>
                     <span v-else class="ticker">{{ t.ticker }}</span>
@@ -791,7 +955,9 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
                   <td class="mono">{{ t.exit_date }}</td>
                   <td class="num">{{ getDaysBetween(t.entry_date, t.exit_date) }} 天</td>
                   <td class="num" :style="{ color: retColor(t.ret) }">{{ pct(t.ret) }}</td>
-                  <td class="num" :style="{ color: retColor(t.alpha) }"><strong>{{ pct(t.alpha) }}</strong></td>
+                  <td class="num" :style="{ color: retColor(t.alpha) }">
+                    <strong>{{ pct(t.alpha) }}</strong>
+                  </td>
                 </tr>
                 <tr v-if="getFilteredTrades(st.id, st._trades).length === 0">
                   <td colspan="8" class="empty-td">無符合條件之交易</td>
@@ -804,11 +970,11 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
 
       <p class="method">
         交易假設說明：進場價為集發布日隔日起第一個收盤，收盤對收盤計算；基準 TW→0050、US→SPY。
-        報酬<strong>已扣交易成本</strong>（台股：手續費 0.1425%／邊 + 證交稅 0.3% 賣出 + 滑價 0.05%／邊；
-        美股：免佣金，僅估滑價 0.05%／邊）。基準以被動持有計、不扣每筆成本，
-        故 α 代表「扣掉自己的交易成本後是否仍贏過懶人持有大盤」。
-        S2 持有 {{ holdDays }} 天。折線圖為逐日 mark-to-market 之投組淨值（資金均分 10 部位、含現金空檔），
-        Sharpe／MDD／CAGR 皆由此日頻序列計算。
+        報酬<strong>已扣交易成本</strong>（台股：手續費 0.1425%／邊 + 證交稅 0.3% 賣出 + 滑價
+        0.05%／邊； 美股：免佣金，僅估滑價 0.05%／邊）。基準以被動持有計、不扣每筆成本， 故 α
+        代表「扣掉自己的交易成本後是否仍贏過懶人持有大盤」。 S2 持有 {{ holdDays }} 天。折線圖為逐日
+        mark-to-market 之投組淨值（資金均分 10 部位、含現金空檔）， Sharpe／MDD／CAGR
+        皆由此日頻序列計算。
       </p>
     </template>
   </div>
@@ -816,25 +982,49 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
 
 <style scoped>
 .disclaimer {
-  background: #2d2410; color: #f6ad55; font-size: 0.82rem; line-height: 1.6;
-  padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1.5rem;
+  background: #2d2410;
+  color: #f6ad55;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
   border-left: 4px solid #f6ad55;
 }
-.disclaimer strong { color: #fbd38d; }
+.disclaimer strong {
+  color: #fbd38d;
+}
 
-.hit-rate-table-wrap { overflow-x: auto; }
+.hit-rate-table-wrap {
+  overflow-x: auto;
+}
 
 /* 篩選列 */
 .filter-bar {
-  display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
-  background: #1a1f2e; padding: 0.75rem 1.25rem; border-radius: 8px; margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  background: #1a1f2e;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
   border: 1px solid #2d3748;
 }
 .filter-group {
-  display: flex; align-items: center; gap: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
-.filter-label { font-size: 0.8rem; color: #718096; font-weight: 600; white-space: nowrap; }
-.filter-sep { color: #718096; }
+.filter-label {
+  font-size: 0.8rem;
+  color: #718096;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.filter-sep {
+  color: #718096;
+}
 .date-range-picker {
   display: flex;
   align-items: center;
@@ -849,57 +1039,141 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
   font-size: 0.78rem;
   padding: 0.35rem 0.75rem;
 }
-.filter-count { font-size: 0.78rem; color: #718096; margin-left: auto; }
+.filter-count {
+  font-size: 0.78rem;
+  color: #718096;
+  margin-left: auto;
+}
 
 @media (max-width: 640px) {
-  .filter-bar { gap: 0.9rem; }
-  .filter-group { flex-wrap: wrap; width: 100%; }
-  .date-range-picker { flex-wrap: wrap; width: 100%; }
-  .date-input-field { max-width: 130px; }
-  .reset-btn { margin-left: auto; }
-  .filter-count { margin-left: 0; }
+  .filter-bar {
+    gap: 0.9rem;
+  }
+  .filter-group {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .date-range-picker {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .date-input-field {
+    max-width: 130px;
+  }
+  .reset-btn {
+    margin-left: auto;
+  }
+  .filter-count {
+    margin-left: 0;
+  }
 }
 
 /* 邊際真實性檢驗 */
 .factor-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-top: 0.75rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  margin-top: 0.75rem;
 }
-@media (max-width: 768px) { .factor-grid { grid-template-columns: 1fr; } }
-.factor-block-title { font-size: 0.82rem; color: #a0aec0; font-weight: 600; margin-bottom: 0.5rem; }
-.bm-note { color: #4a5568; font-size: 0.72rem; margin-left: 0.3rem; }
-.decomp-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+@media (max-width: 768px) {
+  .factor-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.factor-block-title {
+  font-size: 0.82rem;
+  color: #a0aec0;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.bm-note {
+  color: #4a5568;
+  font-size: 0.72rem;
+  margin-left: 0.3rem;
+}
+.decomp-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
 .decomp-card {
-  background: #1e2535; border: 1px solid #2d3748; border-radius: 8px; padding: 0.7rem 0.9rem;
+  background: #1e2535;
+  border: 1px solid #2d3748;
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
 }
-.decomp-label { font-size: 0.72rem; color: #718096; margin-bottom: 0.2rem; }
-.decomp-val { font-size: 1.3rem; font-weight: 800; font-variant-numeric: tabular-nums; color: #e2e8f0; }
-.decomp-val.hot { color: #f6ad55; }
+.decomp-label {
+  font-size: 0.72rem;
+  color: #718096;
+  margin-bottom: 0.2rem;
+}
+.decomp-val {
+  font-size: 1.3rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #e2e8f0;
+}
+.decomp-val.hot {
+  color: #f6ad55;
+}
 .factor-verdict {
-  margin-top: 1rem; padding: 0.75rem 1rem; background: #1a2230; border-left: 3px solid #63b3ed;
-  border-radius: 6px; font-size: 0.84rem; color: #cbd5e0; line-height: 1.6;
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: #1a2230;
+  border-left: 3px solid #63b3ed;
+  border-radius: 6px;
+  font-size: 0.84rem;
+  color: #cbd5e0;
+  line-height: 1.6;
 }
 
 /* 目前建議區 */
-.rec-section .strat-desc { line-height: 1.7; }
-.buy-hint { color: #68d391; }
-.hold-hint { color: #a0aec0; }
+.rec-section .strat-desc {
+  line-height: 1.7;
+}
+.buy-hint {
+  color: #68d391;
+}
+.hold-hint {
+  color: #a0aec0;
+}
 .rec-controls {
-  display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
   margin: 0.5rem 0 0.85rem;
 }
 .fresh-toggle {
-  display: flex; align-items: center; gap: 0.4rem;
-  font-size: 0.82rem; color: #a0aec0; cursor: pointer; user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: #a0aec0;
+  cursor: pointer;
+  user-select: none;
 }
-.fresh-toggle input { cursor: pointer; }
-.rec-count { font-size: 0.82rem; color: #718096; }
+.fresh-toggle input {
+  cursor: pointer;
+}
+.rec-count {
+  font-size: 0.82rem;
+  color: #718096;
+}
 
 /* 主要策略選擇器 */
 .featured-bar {
-  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
   margin-bottom: 1rem;
 }
-.featured-label { font-size: 0.85rem; color: #a0aec0; font-weight: 600; }
+.featured-label {
+  font-size: 0.85rem;
+  color: #a0aec0;
+  font-weight: 600;
+}
 
 /* KPI Grid */
 .kpi-grid {
@@ -985,13 +1259,28 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
   align-items: center;
   margin-bottom: 0.75rem;
 }
-.strat-title { font-size: 1.1rem; font-weight: 700; }
-.strat-title .sid { color: #63b3ed; font-family: monospace; margin-right: 0.3rem; }
-.strat-desc { font-size: 0.8rem; color: #718096; margin-bottom: 0.75rem; }
+.strat-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.strat-title .sid {
+  color: #63b3ed;
+  font-family: monospace;
+  margin-right: 0.3rem;
+}
+.strat-desc {
+  font-size: 0.8rem;
+  color: #718096;
+  margin-bottom: 0.75rem;
+}
 
 .expand-btn-text {
-  background: none; border: none; color: #63b3ed;
-  font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  background: none;
+  border: none;
+  color: #63b3ed;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
   padding: 0.25rem 0.5rem;
 }
 .expand-btn-text:hover {
@@ -1000,15 +1289,36 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
 
 /* Tables */
 .bt-table th {
-  padding: 0.6rem 0.9rem; background: #1e2535;
+  padding: 0.6rem 0.9rem;
+  background: #1e2535;
 }
-.bt-table td { padding: 0.6rem 0.9rem; }
-.bt-table.small td { padding: 0.45rem 0.8rem; font-size: 0.78rem; }
-.bt-table tr.dim td { color: #4a5568; }
-.num { text-align: right; font-variant-numeric: tabular-nums; }
-.muted { color: #718096; }
-.mono { font-family: monospace; font-size: 0.78rem; color: #718096; }
-.ticker { font-family: monospace; color: #63b3ed; font-weight: 600; }
+.bt-table td {
+  padding: 0.6rem 0.9rem;
+}
+.bt-table.small td {
+  padding: 0.45rem 0.8rem;
+  font-size: 0.78rem;
+}
+.bt-table tr.dim td {
+  color: #4a5568;
+}
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.muted {
+  color: #718096;
+}
+.mono {
+  font-family: monospace;
+  font-size: 0.78rem;
+  color: #718096;
+}
+.ticker {
+  font-family: monospace;
+  color: #63b3ed;
+  font-weight: 600;
+}
 .ticker-link {
   text-decoration: none;
 }
@@ -1027,24 +1337,76 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
 
 /* Performers */
 .performers {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
   margin: 1rem 0;
 }
 @media (max-width: 640px) {
-  .performers { grid-template-columns: 1fr; }
+  .performers {
+    grid-template-columns: 1fr;
+  }
 }
-.perf-col { background: #1e2535; border-radius: 8px; padding: 0.6rem 0.9rem; border: 1px solid #2d3748; min-width: 0; }
-.perf-head { font-size: 0.76rem; font-weight: 700; margin-bottom: 0.5rem; letter-spacing: 0.04em; }
-.perf-head.win { color: #68d391; }
-.perf-head.loss { color: #fc8181; }
-.perf-row { display: flex; align-items: baseline; gap: 0.4rem; padding: 0.25rem 0; font-size: 0.78rem; border-bottom: 1px dashed #2d3748; min-width: 0; }
-.perf-row:last-child { border-bottom: none; }
-.perf-ticker { font-family: monospace; color: #63b3ed; font-weight: 600; min-width: 3.5rem; text-decoration: none; }
-.perf-ticker:hover { text-decoration: underline; }
-.perf-name { color: #a0aec0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.perf-val { font-variant-numeric: tabular-nums; font-size: 0.8rem; margin-left: auto; font-weight: 600; }
-.perf-val.win { color: #68d391; }
-.perf-val.loss { color: #fc8181; }
+.perf-col {
+  background: #1e2535;
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid #2d3748;
+  min-width: 0;
+}
+.perf-head {
+  font-size: 0.76rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  letter-spacing: 0.04em;
+}
+.perf-head.win {
+  color: #68d391;
+}
+.perf-head.loss {
+  color: #fc8181;
+}
+.perf-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.25rem 0;
+  font-size: 0.78rem;
+  border-bottom: 1px dashed #2d3748;
+  min-width: 0;
+}
+.perf-row:last-child {
+  border-bottom: none;
+}
+.perf-ticker {
+  font-family: monospace;
+  color: #63b3ed;
+  font-weight: 600;
+  min-width: 3.5rem;
+  text-decoration: none;
+}
+.perf-ticker:hover {
+  text-decoration: underline;
+}
+.perf-name {
+  color: #a0aec0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.perf-val {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  margin-left: auto;
+  font-weight: 600;
+}
+.perf-val.win {
+  color: #68d391;
+}
+.perf-val.loss {
+  color: #fc8181;
+}
 
 /* Filter pills and Search inside trade log */
 .trade-log-wrap {
@@ -1077,7 +1439,18 @@ function getFilteredTrades(stId: string, trades: TradeRow[]) {
   margin-left: auto;
 }
 
-.trade-log { max-height: 400px; overflow-y: auto; overflow-x: auto; border-radius: 8px; border: 1px solid #2d3748; }
+.trade-log {
+  max-height: 400px;
+  overflow-y: auto;
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid #2d3748;
+}
 
-.method { font-size: 0.76rem; color: #718096; line-height: 1.6; margin-top: 1.5rem; }
+.method {
+  font-size: 0.76rem;
+  color: #718096;
+  line-height: 1.6;
+  margin-top: 1.5rem;
+}
 </style>

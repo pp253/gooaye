@@ -7,7 +7,10 @@ import BaseChip from '@/components/BaseChip.vue'
 import BaseInput from '@/components/BaseInput.vue'
 import BaseCard from '@/components/BaseCard.vue'
 
-interface Chip { name: string; direction: Direction }
+interface Chip {
+  name: string
+  direction: Direction
+}
 
 const EP_COLUMNS = 'id, ep_no, title, source_url, published_at, summary, topics, created_at'
 // 看多 → 中性 → 看空 的排序權重
@@ -67,7 +70,9 @@ const pages = computed(() => {
   return list
 })
 
-const currentPage = computed(() => pages.value.find((p) => p.key === pageKey.value) ?? pages.value[0])
+const currentPage = computed(
+  () => pages.value.find((p) => p.key === pageKey.value) ?? pages.value[0],
+)
 
 async function loadPage() {
   if (!currentPage.value) {
@@ -98,7 +103,10 @@ const searchLoading = ref(false)
 async function ensureFullDataLoaded() {
   if (allEpisodes.value) return
   searchLoading.value = true
-  const { data } = await supabase.from('episodes').select(EP_COLUMNS).order('ep_no', { ascending: false })
+  const { data } = await supabase
+    .from('episodes')
+    .select(EP_COLUMNS)
+    .order('ep_no', { ascending: false })
   allEpisodes.value = (data ?? []) as Episode[]
   allMentions.value = await fetchMentionsMap()
   searchLoading.value = false
@@ -113,7 +121,9 @@ watch(pageKey, () => {
 
 // ── 顯示用：依目前是否搜尋，切換資料來源 ──
 const busy = computed(() => (isSearching.value ? searchLoading.value : pageLoading.value))
-const mentionsByEp = computed(() => (isSearching.value ? allMentions.value ?? {} : pageMentions.value))
+const mentionsByEp = computed(() =>
+  isSearching.value ? (allMentions.value ?? {}) : pageMentions.value,
+)
 
 const displayEpisodes = computed(() => {
   if (!isSearching.value) return pageEpisodes.value
@@ -131,7 +141,11 @@ const displayEpisodes = computed(() => {
 })
 
 onMounted(async () => {
-  const { data } = await supabase.from('episodes').select('ep_no').order('ep_no', { ascending: false }).limit(1)
+  const { data } = await supabase
+    .from('episodes')
+    .select('ep_no')
+    .order('ep_no', { ascending: false })
+    .limit(1)
   maxEpNo.value = data?.[0]?.ep_no ?? 0
   await loadPage()
 })
@@ -143,15 +157,12 @@ onMounted(async () => {
       <h1 class="page-title">集數列表</h1>
     </div>
 
-    <BaseInput
-      v-model="search"
-      type="search"
-      placeholder="搜尋集數、標題、主題、提及個股…"
-    />
+    <BaseInput v-model="search" type="search" placeholder="搜尋集數、標題、主題、提及個股…" />
 
     <div v-if="!isSearching && pages.length > 1" class="pager">
       <BaseChip
-        v-for="p in pages" :key="p.key"
+        v-for="p in pages"
+        :key="p.key"
         :active="p.key === pageKey"
         @click="pageKey = p.key"
       >
@@ -163,15 +174,11 @@ onMounted(async () => {
     <p v-if="busy" class="loading">載入中 …</p>
     <p v-else-if="displayEpisodes.length === 0" class="loading">沒有符合條件的集數</p>
     <div v-else class="episode-grid">
-      <BaseCard
-        v-for="ep in displayEpisodes"
-        :key="ep.id"
-        :to="`/episodes/${ep.ep_no}`"
-      >
+      <BaseCard v-for="ep in displayEpisodes" :key="ep.id" :to="`/episodes/${ep.ep_no}`">
         <div class="ep-header">
           <span class="ep-no">EP{{ ep.ep_no }}</span>
           <span class="ep-title">{{ ep.title }}</span>
-          <span class="ep-date" v-if="ep.published_at">{{ ep.published_at }}</span>
+          <span v-if="ep.published_at" class="ep-date">{{ ep.published_at }}</span>
         </div>
         <ul class="ep-summary">
           <li v-for="(s, i) in ep.summary.slice(0, 3)" :key="i">{{ s }}</li>
@@ -181,9 +188,14 @@ onMounted(async () => {
         </div>
         <div v-if="mentionsByEp[ep.id]?.length" class="ep-mentions">
           <span
-            v-for="(c, i) in mentionsByEp[ep.id].slice(0, 12)" :key="i"
-            :class="['m-chip', c.direction === '看多' ? 'bull' : c.direction === '看空' ? 'bear' : 'neutral']"
-          >{{ c.name }}</span>
+            v-for="(c, i) in mentionsByEp[ep.id].slice(0, 12)"
+            :key="i"
+            :class="[
+              'm-chip',
+              c.direction === '看多' ? 'bull' : c.direction === '看空' ? 'bear' : 'neutral',
+            ]"
+            >{{ c.name }}</span
+          >
           <span v-if="mentionsByEp[ep.id].length > 12" class="m-more">
             +{{ mentionsByEp[ep.id].length - 12 }}
           </span>
@@ -194,9 +206,20 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.episodes-page { padding-bottom: 6rem; }
-.pager { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1.25rem; }
-.search-hint { color: #718096; font-size: 0.82rem; margin-bottom: 1.25rem; }
+.episodes-page {
+  padding-bottom: 6rem;
+}
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1.25rem;
+}
+.search-hint {
+  color: #718096;
+  font-size: 0.82rem;
+  margin-bottom: 1.25rem;
+}
 
 .episode-grid {
   display: grid;
@@ -204,15 +227,42 @@ onMounted(async () => {
   gap: 1rem;
 }
 
-.ep-header { display: flex; align-items: baseline; gap: 0.6rem; }
-.ep-no { font-weight: 700; color: #63b3ed; font-size: 1rem; white-space: nowrap; }
-.ep-title { color: #a0aec0; font-size: 0.9rem; }
-.ep-date { color: #718096; font-size: 0.75rem; margin-left: auto; }
+.ep-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+.ep-no {
+  font-weight: 700;
+  color: #63b3ed;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+.ep-title {
+  color: #a0aec0;
+  font-size: 0.9rem;
+}
+.ep-date {
+  color: #718096;
+  font-size: 0.75rem;
+  margin-left: auto;
+}
 
-.ep-summary { padding-left: 1rem; color: #cbd5e0; font-size: 0.82rem; line-height: 1.6; }
-.ep-summary li { margin-bottom: 0.2rem; }
+.ep-summary {
+  padding-left: 1rem;
+  color: #cbd5e0;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+.ep-summary li {
+  margin-bottom: 0.2rem;
+}
 
-.ep-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.ep-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
 .tag {
   background: #2d3748;
   color: #90cdf4;
@@ -221,6 +271,16 @@ onMounted(async () => {
   border-radius: 9999px;
 }
 
-.ep-mentions { display: flex; flex-wrap: wrap; gap: 0.3rem; border-top: 1px solid #232b3a; padding-top: 0.6rem; }
-.m-more { font-size: 0.72rem; color: #718096; align-self: center; }
+.ep-mentions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  border-top: 1px solid #232b3a;
+  padding-top: 0.6rem;
+}
+.m-more {
+  font-size: 0.72rem;
+  color: #718096;
+  align-self: center;
+}
 </style>

@@ -73,7 +73,9 @@ function pairPrice(entry: number, current: number): string {
             <span v-if="r.ep_no" class="ep">EP{{ r.ep_no }}</span>
             <span class="sdate">{{ r.signal_date }}</span>
           </td>
-          <td class="num">{{ r.confidence != null ? (r.confidence * 100).toFixed(0) + '%' : '—' }}</td>
+          <td class="num">
+            {{ r.confidence != null ? (r.confidence * 100).toFixed(0) + '%' : '—' }}
+          </td>
           <td>
             <span v-if="r.has_position" class="pos-badge">✓ 有</span>
             <span v-else class="no-pos">—</span>
@@ -106,8 +108,15 @@ function pairPrice(entry: number, current: number): string {
   z-index: 1;
   background: var(--bg-card);
 }
-.mono { font-family: monospace; font-size: 0.78rem; color: #a0aec0; }
-.mkt { color: #718096; font-size: 0.78rem; }
+.mono {
+  font-family: monospace;
+  font-size: 0.78rem;
+  color: #a0aec0;
+}
+.mkt {
+  color: #718096;
+  font-size: 0.78rem;
+}
 
 .status {
   display: inline-block;
@@ -117,20 +126,58 @@ function pairPrice(entry: number, current: number): string {
   font-weight: 700;
   white-space: nowrap;
 }
-.status.buy { background: #1c4532; color: #68d391; }
-.status.hold { background: #2d3748; color: #a0aec0; }
+.status.buy {
+  background: #1c4532;
+  color: #68d391;
+}
+.status.hold {
+  background: #2d3748;
+  color: #a0aec0;
+}
 
-.ticker { font-family: monospace; color: #63b3ed; font-weight: 600; }
-.ticker-link { text-decoration: none; }
-.ticker-link:hover .ticker { text-decoration: underline; }
-.name { color: #e2e8f0; margin-left: 0.4rem; cursor: help; }
+.ticker {
+  font-family: monospace;
+  color: #63b3ed;
+  font-weight: 600;
+}
+.ticker-link {
+  text-decoration: none;
+}
+.ticker-link:hover .ticker {
+  text-decoration: underline;
+}
+.name {
+  color: #e2e8f0;
+  margin-left: 0.4rem;
+  cursor: help;
+}
 
-.signal { white-space: nowrap; }
-.ep { font-family: monospace; color: #f6ad55; font-size: 0.74rem; margin-right: 0.4rem; }
-.sdate { color: #718096; font-size: 0.76rem; }
+.signal {
+  white-space: nowrap;
+}
+.ep {
+  font-family: monospace;
+  color: #f6ad55;
+  font-size: 0.74rem;
+  margin-right: 0.4rem;
+}
+.sdate {
+  color: #718096;
+  font-size: 0.76rem;
+}
 
-.pos-badge { color: #68d391; font-weight: 600; font-size: 0.78rem; }
-.no-pos { color: #4a5568; }
+.pos-badge {
+  color: #68d391;
+  font-weight: 600;
+  font-size: 0.78rem;
+}
+.no-pos {
+  color: #4a5568;
+}
 
-.rec-empty { color: #4a5568; font-size: 0.82rem; padding: 1rem 0; }
+.rec-empty {
+  color: #4a5568;
+  font-size: 0.82rem;
+  padding: 1rem 0;
+}
 </style>

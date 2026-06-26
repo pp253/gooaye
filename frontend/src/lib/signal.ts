@@ -83,10 +83,7 @@ export interface StockSignal {
  * @param mentions 該股所有提及（需含 published_at），會在內部依日期排序。
  * @param referenceDate 衰減基準日（通常 = 資料集最新一集日期）
  */
-export function computeSignal(
-  mentions: MentionWithTime[],
-  referenceDate: string,
-): StockSignal {
+export function computeSignal(mentions: MentionWithTime[], referenceDate: string): StockSignal {
   const sorted = [...mentions].sort(
     (a, b) => Date.parse(b.published_at) - Date.parse(a.published_at),
   )

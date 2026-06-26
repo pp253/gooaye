@@ -39,7 +39,9 @@ interface MInfo {
 }
 
 function tooltipHtml(m: MInfo): string {
-  const pos = m.hasPos ? `<span style="color:#fc8181;font-size:11px;margin-left:6px">🔴 有部位</span>` : ''
+  const pos = m.hasPos
+    ? `<span style="color:#fc8181;font-size:11px;margin-left:6px">🔴 有部位</span>`
+    : ''
   return `
     <div style="max-width:260px;white-space:normal">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
@@ -111,8 +113,7 @@ const option = computed(() => {
       axisLabel: {
         ...ECHARTS_BASE_OPTIONS.yAxis.axisLabel,
         fontWeight: 600,
-        formatter: (v: number) =>
-          v === 1 ? '看多' : v === 0 ? '中性' : v === -1 ? '看空' : '',
+        formatter: (v: number) => (v === 1 ? '看多' : v === 0 ? '中性' : v === -1 ? '看空' : ''),
         color: (v: number) =>
           v === 1 ? '#68d391' : v === 0 ? '#90cdf4' : v === -1 ? '#fc8181' : '#718096',
       },

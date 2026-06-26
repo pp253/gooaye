@@ -43,8 +43,11 @@ const copyOk = ref(false)
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleString('zh-TW', {
     timeZone: 'Asia/Taipei',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
   })
 }
 
@@ -215,11 +218,15 @@ onMounted(() => {
         <tbody>
           <tr v-for="m in members" :key="m.email">
             <td>{{ m.email }}</td>
-            <td><span class="badge" :class="m.role">{{ m.role === 'admin' ? 'ADMIN' : 'USER' }}</span></td>
+            <td>
+              <span class="badge" :class="m.role">{{ m.role === 'admin' ? 'ADMIN' : 'USER' }}</span>
+            </td>
             <td class="note">{{ m.note }}</td>
             <td class="time">{{ fmtTime(m.created_at) }}</td>
             <td class="time">{{ loginStatOf(m.email).count }}</td>
-            <td class="time">{{ loginStatOf(m.email).lastAt ? fmtTime(loginStatOf(m.email).lastAt) : '從未登入' }}</td>
+            <td class="time">
+              {{ loginStatOf(m.email).lastAt ? fmtTime(loginStatOf(m.email).lastAt) : '從未登入' }}
+            </td>
             <td>
               <button
                 v-if="m.email !== session?.user.email?.toLowerCase()"
@@ -237,7 +244,9 @@ onMounted(() => {
     <hr class="divider" />
 
     <h2 class="section-title">邀請連結</h2>
-    <p class="sub">產生一次性連結，任何人用 Google 登入並點開即可加入；連結用過一次即失效，預設 7 天過期。</p>
+    <p class="sub">
+      產生一次性連結，任何人用 Google 登入並點開即可加入；連結用過一次即失效，預設 7 天過期。
+    </p>
 
     <form class="invite-form" @submit.prevent="generateLink">
       <label class="days-label">
@@ -251,7 +260,12 @@ onMounted(() => {
     <p v-if="linkErrorMsg" class="error">{{ linkErrorMsg }}</p>
 
     <div v-if="generatedUrl" class="generated-box">
-      <input class="generated-input" :value="generatedUrl" readonly @click="($event.target as HTMLInputElement).select()" />
+      <input
+        class="generated-input"
+        :value="generatedUrl"
+        readonly
+        @click="($event.target as HTMLInputElement).select()"
+      />
       <button class="copy-btn" @click="copyLink">{{ copyOk ? '已複製' : '複製' }}</button>
     </div>
 
@@ -272,7 +286,9 @@ onMounted(() => {
         </thead>
         <tbody>
           <tr v-for="l in links" :key="l.token">
-            <td><span class="badge" :class="linkStatus(l).cls">{{ linkStatus(l).label }}</span></td>
+            <td>
+              <span class="badge" :class="linkStatus(l).cls">{{ linkStatus(l).label }}</span>
+            </td>
             <td class="note">{{ l.created_by }}</td>
             <td class="time">{{ fmtTime(l.created_at) }}</td>
             <td class="time">{{ fmtTime(l.expires_at) }}</td>
@@ -288,55 +304,146 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.members-page { max-width: 1100px; margin: 0 auto; padding-bottom: 6rem; }
-.sub { color: #a0aec0; font-size: 0.88rem; margin-bottom: 1.2rem; }
-
-.invite-form { display: flex; gap: 0.6rem; margin-bottom: 0.8rem; }
-.invite-form .invite-input { flex: 1; margin-bottom: 0; }
-.invite-form button {
-  padding: 0.55rem 1.1rem; border-radius: 8px; border: none; cursor: pointer;
-  background: #3182ce; color: #fff; font-weight: 600; font-size: 0.88rem;
+.members-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding-bottom: 6rem;
 }
-.invite-form button:disabled { background: #2c5282; cursor: default; }
-.invite-form button:not(:disabled):hover { background: #2b6cb0; }
+.sub {
+  color: #a0aec0;
+  font-size: 0.88rem;
+  margin-bottom: 1.2rem;
+}
 
-.error { color: #fc8181; font-size: 0.85rem; margin-bottom: 0.8rem; }
-.success { color: #68d391; font-size: 0.85rem; margin-bottom: 0.8rem; }
+.invite-form {
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 0.8rem;
+}
+.invite-form .invite-input {
+  flex: 1;
+  margin-bottom: 0;
+}
+.invite-form button {
+  padding: 0.55rem 1.1rem;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  background: #3182ce;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+.invite-form button:disabled {
+  background: #2c5282;
+  cursor: default;
+}
+.invite-form button:not(:disabled):hover {
+  background: #2b6cb0;
+}
 
-.note { color: #a0aec0; font-size: 0.84rem; }
-.time { color: #a0aec0; font-variant-numeric: tabular-nums; font-size: 0.84rem; }
+.error {
+  color: #fc8181;
+  font-size: 0.85rem;
+  margin-bottom: 0.8rem;
+}
+.success {
+  color: #68d391;
+  font-size: 0.85rem;
+  margin-bottom: 0.8rem;
+}
+
+.note {
+  color: #a0aec0;
+  font-size: 0.84rem;
+}
+.time {
+  color: #a0aec0;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.84rem;
+}
 
 .revoke {
-  background: none; border: 1px solid #4a5568; color: #fc8181;
-  border-radius: 6px; padding: 0.2rem 0.6rem; font-size: 0.78rem; cursor: pointer;
+  background: none;
+  border: 1px solid #4a5568;
+  color: #fc8181;
+  border-radius: 6px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.78rem;
+  cursor: pointer;
 }
-.revoke:hover { background: #2d3748; }
+.revoke:hover {
+  background: #2d3748;
+}
 
-.divider { border: none; border-top: 1px solid #2d3748; margin: 2rem 0 1.5rem; }
-.section-title { font-size: 1.05rem; font-weight: 700; margin: 0 0 0.4rem; }
+.divider {
+  border: none;
+  border-top: 1px solid #2d3748;
+  margin: 2rem 0 1.5rem;
+}
+.section-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0 0 0.4rem;
+}
 
 .days-label {
-  display: flex; align-items: center; gap: 0.5rem;
-  color: #a0aec0; font-size: 0.85rem; white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #a0aec0;
+  font-size: 0.85rem;
+  white-space: nowrap;
 }
 .days-input {
-  width: 4.5rem; padding: 0.45rem 0.5rem; border-radius: 6px;
-  border: 1px solid #4a5568; background: #1a1f2e; color: #e2e8f0; font-size: 0.88rem;
+  width: 4.5rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #4a5568;
+  background: #1a1f2e;
+  color: #e2e8f0;
+  font-size: 0.88rem;
 }
 
-.generated-box { display: flex; gap: 0.6rem; margin-bottom: 1.2rem; }
+.generated-box {
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 1.2rem;
+}
 .generated-input {
-  flex: 1; padding: 0.55rem 0.7rem; border-radius: 8px;
-  border: 1px solid #4a5568; background: #1a1f2e; color: #9ae6b4;
-  font-size: 0.82rem; font-family: monospace;
+  flex: 1;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid #4a5568;
+  background: #1a1f2e;
+  color: #9ae6b4;
+  font-size: 0.82rem;
+  font-family: monospace;
 }
 .copy-btn {
-  padding: 0.55rem 1rem; border-radius: 8px; border: none; cursor: pointer;
-  background: #2d3748; color: #e2e8f0; font-weight: 600; font-size: 0.85rem;
+  padding: 0.55rem 1rem;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  background: #2d3748;
+  color: #e2e8f0;
+  font-weight: 600;
+  font-size: 0.85rem;
 }
-.copy-btn:hover { background: #374151; }
+.copy-btn:hover {
+  background: #374151;
+}
 
-.badge.pending { background: rgba(99, 179, 237, 0.18); color: #63b3ed; }
-.badge.used { background: rgba(154, 230, 180, 0.15); color: #68d391; }
-.badge.expired { background: rgba(252, 129, 129, 0.15); color: #fc8181; }
+.badge.pending {
+  background: rgba(99, 179, 237, 0.18);
+  color: #63b3ed;
+}
+.badge.used {
+  background: rgba(154, 230, 180, 0.15);
+  color: #68d391;
+}
+.badge.expired {
+  background: rgba(252, 129, 129, 0.15);
+  color: #fc8181;
+}
 </style>

@@ -53,11 +53,11 @@ const option = computed(() => ({
   yAxis: {
     ...ECHARTS_BASE_OPTIONS.yAxis,
     type: 'value',
-    axisLabel: { 
+    axisLabel: {
       ...ECHARTS_BASE_OPTIONS.yAxis.axisLabel,
-      color: CHART_THEME.textColorMuted, 
-      fontSize: 9, 
-      formatter: (v: number) => `${(v * 100).toFixed(0)}%` 
+      color: CHART_THEME.textColorMuted,
+      fontSize: 9,
+      formatter: (v: number) => `${(v * 100).toFixed(0)}%`,
     },
   },
   series: [

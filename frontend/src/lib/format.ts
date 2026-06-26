@@ -14,3 +14,8 @@ export function retColor(x: number | null | undefined): string {
   if (x == null) return '#718096'
   return x >= 0 ? '#68d391' : '#fc8181'
 }
+
+/** 今天（或指定日期）的 YYYY-MM-DD 字串，UTC。 */
+export function formatDateYmd(date: Date = new Date()): string {
+  return date.toISOString().slice(0, 10)
+}

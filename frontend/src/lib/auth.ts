@@ -72,7 +72,6 @@ async function refreshAllowed(): Promise<void> {
   }
 }
 
-
 /** App 啟動時呼叫一次：取得 session + 訂閱變化 */
 export async function initAuth(): Promise<void> {
   const { data } = await supabase.auth.getSession()

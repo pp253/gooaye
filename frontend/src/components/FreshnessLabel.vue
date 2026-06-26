@@ -20,7 +20,19 @@ const meta = computed(() => FRESHNESS_META[freshness(props.daysAgo)])
 </template>
 
 <style scoped>
-.fl-wrap { display: inline-flex; align-items: center; gap: 0.35rem; }
-.fl-fresh { font-size: 0.84rem; font-weight: 500; white-space: nowrap; }
-.fl-ep { font-size: 0.76rem; color: #4a5568; white-space: nowrap; }
+.fl-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.fl-fresh {
+  font-size: 0.84rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.fl-ep {
+  font-size: 0.76rem;
+  color: #4a5568;
+  white-space: nowrap;
+}
 </style>

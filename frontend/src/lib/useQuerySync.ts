@@ -23,8 +23,7 @@ export function useQuerySync(fields: Record<string, Field>): void {
     if (q == null) continue
     const raw = Array.isArray(q) ? q[0] : q
     if (raw == null) continue
-    f.ref.value =
-      typeof f.default === 'boolean' ? raw === '1' || raw === 'true' : raw
+    f.ref.value = typeof f.default === 'boolean' ? raw === '1' || raw === 'true' : raw
   }
 
   // 2. state -> URL

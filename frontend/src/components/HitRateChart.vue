@@ -25,8 +25,8 @@ const props = defineProps<{
 
 const option = computed(() => {
   const horizons = props.hitRate.map((h) => `${h.horizon} 天`)
-  const upRates = props.hitRate.map((h) => +(((h.pct_positive ?? 0) * 100).toFixed(1)))
-  const beatRates = props.hitRate.map((h) => +(((h.beat_bm_rate ?? 0) * 100).toFixed(1)))
+  const upRates = props.hitRate.map((h) => +((h.pct_positive ?? 0) * 100).toFixed(1))
+  const beatRates = props.hitRate.map((h) => +((h.beat_bm_rate ?? 0) * 100).toFixed(1))
 
   return {
     ...ECHARTS_BASE_OPTIONS,
@@ -42,12 +42,15 @@ const option = computed(() => {
       ...ECHARTS_BASE_OPTIONS.tooltip,
       trigger: 'axis',
       textStyle: { ...ECHARTS_BASE_OPTIONS.tooltip.textStyle, fontSize: 12 },
-      formatter: (params: { seriesName: string; name: string; value: number; dataIndex: number }[]) => {
+      formatter: (
+        params: { seriesName: string; name: string; value: number; dataIndex: number }[],
+      ) => {
         if (!params?.length) return ''
         const i = params[0].dataIndex
         const h = props.hitRate[i]
         const lines = params.map(
-          (p) => `<span style="color:${CHART_THEME.textColorNormal}">${p.seriesName}</span>: <b>${p.value}%</b>`,
+          (p) =>
+            `<span style="color:${CHART_THEME.textColorNormal}">${p.seriesName}</span>: <b>${p.value}%</b>`,
         )
         return [
           `<div style="font-size:11px;color:${CHART_THEME.textColorMuted}">${params[0].name}（n=${h?.n ?? '—'}）</div>`,
@@ -64,8 +67,8 @@ const option = computed(() => {
       data: horizons,
       axisLabel: {
         ...ECHARTS_BASE_OPTIONS.xAxis.axisLabel,
-        fontSize: 11
-      }
+        fontSize: 11,
+      },
     },
     yAxis: {
       ...ECHARTS_BASE_OPTIONS.yAxis,

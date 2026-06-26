@@ -7,7 +7,7 @@ const props = withDefaults(
     to?: string | object
     hoverable?: boolean
   }>(),
-  { hoverable: true }
+  { hoverable: true, to: undefined },
 )
 
 const isLink = computed(() => !!props.to)
@@ -15,11 +15,7 @@ const componentType = computed(() => (isLink.value ? RouterLink : 'div'))
 </script>
 
 <template>
-  <component
-    :is="componentType"
-    :to="to"
-    :class="['app-card', { hoverable }]"
-  >
+  <component :is="componentType" :to="to" :class="['app-card', { hoverable }]">
     <slot />
   </component>
 </template>
@@ -35,7 +31,11 @@ const componentType = computed(() => (isLink.value ? RouterLink : 'div'))
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  transition: border-color 0.15s, background 0.15s, transform 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    transform 0.15s,
+    box-shadow 0.15s;
 }
 .app-card.hoverable:hover {
   border-color: #63b3ed;

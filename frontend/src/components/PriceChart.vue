@@ -30,9 +30,7 @@ const loading = ref(true)
 // 套用時間範圍：fromDate 為使用者選的範圍；「全部」時退回 axisStart 當預設 lookback
 const effectiveFrom = computed(() => props.fromDate ?? props.axisStart ?? null)
 const vis = computed(() =>
-  effectiveFrom.value
-    ? prices.value.filter((p) => p.date >= effectiveFrom.value!)
-    : prices.value,
+  effectiveFrom.value ? prices.value.filter((p) => p.date >= effectiveFrom.value!) : prices.value,
 )
 const visMentions = computed(() =>
   effectiveFrom.value
@@ -162,9 +160,12 @@ async function load() {
 
 onMounted(load)
 watch(() => props.stockId, load)
-watch([() => props.fromDate, () => props.axisStart, () => props.axisEnd, () => props.mentions], () => {
-  if (chart) applyData()
-})
+watch(
+  [() => props.fromDate, () => props.axisStart, () => props.axisEnd, () => props.mentions],
+  () => {
+    if (chart) applyData()
+  },
+)
 
 onUnmounted(() => {
   chart?.remove()
@@ -183,26 +184,61 @@ onUnmounted(() => {
       <div ref="container" class="pc-canvas"></div>
       <MentionTip
         v-if="hovered"
-        :ep="hovered.ep" :dir="hovered.dir" :color="hovered.color"
-        :date="hovered.date" :days-ago="hovered.daysAgo"
-        :conf="hovered.conf" :has-pos="hovered.hasPos" :quote="hovered.quote"
-        :left-pct="tipPos.leftPct" :top-pct="tipPos.topPct"
-        :place-below="tipPos.placeBelow" />
+        :ep="hovered.ep"
+        :dir="hovered.dir"
+        :color="hovered.color"
+        :date="hovered.date"
+        :days-ago="hovered.daysAgo"
+        :conf="hovered.conf"
+        :has-pos="hovered.hasPos"
+        :quote="hovered.quote"
+        :left-pct="tipPos.leftPct"
+        :top-pct="tipPos.topPct"
+        :place-below="tipPos.placeBelow"
+      />
     </div>
     <div v-if="!loading && vis.length" class="legend">
-      <span><i style="background:#68d391"></i>看多</span>
-      <span><i style="background:#90cdf4"></i>中性</span>
-      <span><i style="background:#fc8181"></i>看空</span>
+      <span><i style="background: #68d391"></i>看多</span>
+      <span><i style="background: #90cdf4"></i>中性</span>
+      <span><i style="background: #fc8181"></i>看空</span>
       <span><i class="sq"></i>有部位</span>
     </div>
   </div>
 </template>
 
 <style scoped>
-.pc-msg { color: #718096; font-size: 0.85rem; padding: 1rem 0; }
-.pc-chart { position: relative; }
-.pc-canvas { width: 100%; height: 240px; border-radius: 8px; overflow: hidden; }
-.legend { display: flex; gap: 1rem; margin-top: 0.5rem; font-size: 0.75rem; color: #a0aec0; }
-.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 0.25rem; vertical-align: middle; }
-.legend i.sq { border-radius: 2px; background: transparent; border: 2px solid #cbd5e0; }
+.pc-msg {
+  color: #718096;
+  font-size: 0.85rem;
+  padding: 1rem 0;
+}
+.pc-chart {
+  position: relative;
+}
+.pc-canvas {
+  width: 100%;
+  height: 240px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.legend {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: #a0aec0;
+}
+.legend i {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 0.25rem;
+  vertical-align: middle;
+}
+.legend i.sq {
+  border-radius: 2px;
+  background: transparent;
+  border: 2px solid #cbd5e0;
+}
 </style>

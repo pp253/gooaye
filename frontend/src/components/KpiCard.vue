@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import InfoTip from '@/components/InfoTip.vue'
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     label: string
     value: string
@@ -12,7 +12,12 @@ const props = withDefaults(
     /** 是否顯示 ⓘ tooltip 插槽 */
     hasTip?: boolean
   }>(),
-  { color: '#e2e8f0', hasTip: false },
+  {
+    color: '#e2e8f0',
+    hasTip: false,
+    subtitle: undefined,
+    secondary: undefined,
+  },
 )
 </script>
 
