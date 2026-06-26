@@ -6,6 +6,7 @@ import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, MarkLineComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
 import { ECHARTS_BASE_OPTIONS, CHART_THEME } from '@/lib/chartTheme'
+import { retColor } from '@/lib/format'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, MarkLineComponent])
 
@@ -20,7 +21,7 @@ const props = withDefaults(
 
 const color = computed(() => {
   const last = props.curve[props.curve.length - 1]?.value ?? 0
-  return last >= 0 ? '#68d391' : '#fc8181'
+  return retColor(last)
 })
 
 const option = computed(() => ({

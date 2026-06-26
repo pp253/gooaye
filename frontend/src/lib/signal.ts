@@ -118,3 +118,37 @@ export function computeSignal(mentions: MentionWithTime[], referenceDate: string
     first_mention_days_ago: firstDaysAgo,
   }
 }
+
+export interface MarkerInfo {
+  ep?: number
+  date: string
+  daysAgo: number
+  dir: Direction
+  conf: number
+  hasPos: boolean
+  quote: string
+  color: string
+  price?: number
+}
+
+export function buildMarkerInfo(m: MentionWithTime, price?: number): MarkerInfo {
+  return {
+    ep: m.episodes?.ep_no,
+    date: m.published_at,
+    daysAgo: m.days_ago,
+    dir: m.direction,
+    conf: m.confidence,
+    hasPos: m.has_position,
+    quote: m.quote,
+    color: DIRECTION_COLOR[m.direction],
+    price,
+  }
+}
+
+export function filterMentionsByDate<T extends { published_at: string }>(
+  mentions: T[],
+  fromDate: string | null | undefined,
+): T[] {
+  if (!fromDate) return mentions
+  return mentions.filter((m) => m.published_at >= fromDate)
+}

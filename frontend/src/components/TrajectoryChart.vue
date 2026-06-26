@@ -5,9 +5,15 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { ScatterChart, LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
-import type { MentionWithTime } from '@/lib/signal'
-import { DIRECTION_WEIGHT, DIRECTION_COLOR as dirColor, relativeTime } from '@/lib/signal'
-import type { Direction } from '@/lib/types'
+import {
+  DIRECTION_WEIGHT,
+  DIRECTION_COLOR,
+  relativeTime,
+  filterMentionsByDate,
+  buildMarkerInfo,
+  type MentionWithTime,
+  type MarkerInfo,
+} from '@/lib/signal'
 import { ECHARTS_BASE_OPTIONS } from '@/lib/chartTheme'
 
 use([CanvasRenderer, ScatterChart, LineChart, GridComponent, TooltipComponent])
@@ -22,23 +28,11 @@ const props = defineProps<{
 
 // 套用時間範圍後依日期排序（舊→新）
 const sorted = computed(() => {
-  const ms = props.fromDate
-    ? props.mentions.filter((m) => m.published_at >= props.fromDate!)
-    : props.mentions
+  const ms = filterMentionsByDate(props.mentions, props.fromDate)
   return [...ms].sort((a, b) => Date.parse(a.published_at) - Date.parse(b.published_at))
 })
 
-interface MInfo {
-  ep?: number
-  date: string
-  daysAgo: number
-  dir: Direction
-  conf: number
-  hasPos: boolean
-  quote: string
-}
-
-function tooltipHtml(m: MInfo): string {
+function tooltipHtml(m: MarkerInfo): string {
   const pos = m.hasPos
     ? `<span style="color:#fc8181;font-size:11px;margin-left:6px">🔴 有部位</span>`
     : ''
@@ -46,7 +40,7 @@ function tooltipHtml(m: MInfo): string {
     <div style="max-width:260px;white-space:normal">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
         <b style="color:#63b3ed">EP${m.ep}</b>
-        <b style="color:${dirColor[m.dir]}">${m.dir}</b>${pos}
+        <b style="color:${m.color}">${m.dir}</b>${pos}
       </div>
       <div style="font-size:11px;color:#a0aec0;margin-bottom:4px">
         ${m.date} · ${relativeTime(m.daysAgo)} · 信心 ${Math.round(m.conf * 100)}%
@@ -57,18 +51,10 @@ function tooltipHtml(m: MInfo): string {
 
 const option = computed(() => {
   const pts = sorted.value.map((m) => {
-    const info: MInfo = {
-      ep: m.episodes?.ep_no,
-      date: m.published_at,
-      daysAgo: m.days_ago,
-      dir: m.direction,
-      conf: m.confidence,
-      hasPos: m.has_position,
-      quote: m.quote,
-    }
+    const info = buildMarkerInfo(m)
     return {
       value: [Date.parse(m.published_at), DIRECTION_WEIGHT[m.direction]],
-      itemStyle: { color: dirColor[m.direction], borderColor: '#0f1117', borderWidth: 1 },
+      itemStyle: { color: info.color, borderColor: '#0f1117', borderWidth: 1 },
       _m: info,
     }
   })
@@ -88,7 +74,7 @@ const option = computed(() => {
     tooltip: {
       ...ECHARTS_BASE_OPTIONS.tooltip,
       trigger: 'item',
-      formatter: (p: { data?: { _m?: MInfo } }) =>
+      formatter: (p: { data?: { _m?: MarkerInfo } }) =>
         p.data && p.data._m ? tooltipHtml(p.data._m) : '',
     },
     xAxis: {
@@ -115,7 +101,13 @@ const option = computed(() => {
         fontWeight: 600,
         formatter: (v: number) => (v === 1 ? '看多' : v === 0 ? '中性' : v === -1 ? '看空' : ''),
         color: (v: number) =>
-          v === 1 ? '#68d391' : v === 0 ? '#90cdf4' : v === -1 ? '#fc8181' : '#718096',
+          v === 1
+            ? DIRECTION_COLOR['看多']
+            : v === 0
+              ? DIRECTION_COLOR['中性']
+              : v === -1
+                ? DIRECTION_COLOR['看空']
+                : '#718096',
       },
     },
     series: [
@@ -138,7 +130,7 @@ const option = computed(() => {
       {
         type: 'scatter',
         data: pts,
-        symbolSize: (_: unknown, p: { data: { _m: MInfo } }) => 8 + p.data._m.conf * 12,
+        symbolSize: (_: unknown, p: { data: { _m: MarkerInfo } }) => 8 + p.data._m.conf * 12,
         z: 3,
       },
     ],

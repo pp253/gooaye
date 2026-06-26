@@ -20,6 +20,17 @@ type RawMention = Mention & {
   episodes: { ep_no: number; title: string; published_at: string | null }
 }
 
+export function toMentionWithTime(m: RawMention, referenceDate: string): MentionWithTime {
+  const published = m.episodes?.published_at ?? formatDateYmd()
+  const daysAgo = daysBetween(published, referenceDate)
+  return {
+    ...m,
+    published_at: published,
+    days_ago: daysAgo,
+    freshness: freshness(daysAgo),
+  }
+}
+
 /** 依 stock_id 分組 mentions，補上時間欄位（published_at/days_ago/freshness）。 */
 function buildMentionsByStock(
   rawMentions: RawMention[],
@@ -27,15 +38,8 @@ function buildMentionsByStock(
 ): Map<number, MentionWithTime[]> {
   const byStock = new Map<number, MentionWithTime[]>()
   for (const m of rawMentions) {
-    const published = m.episodes?.published_at
-    if (!published || m.stock_id == null) continue
-    const daysAgo = daysBetween(published, referenceDate)
-    const withTime: MentionWithTime = {
-      ...m,
-      published_at: published,
-      days_ago: daysAgo,
-      freshness: freshness(daysAgo),
-    }
+    if (!m.episodes?.published_at || m.stock_id == null) continue
+    const withTime = toMentionWithTime(m, referenceDate)
     const arr = byStock.get(m.stock_id) ?? []
     arr.push(withTime)
     byStock.set(m.stock_id, arr)
@@ -124,11 +128,7 @@ export async function loadSingleStockDetail(stockId: number): Promise<{
 
   const mentions: MentionWithTime[] = rawMentions
     .filter((m) => m.episodes?.published_at)
-    .map((m) => {
-      const published = m.episodes.published_at as string
-      const daysAgo = daysBetween(published, referenceDate)
-      return { ...m, published_at: published, days_ago: daysAgo, freshness: freshness(daysAgo) }
-    })
+    .map((m) => toMentionWithTime(m, referenceDate))
 
   if (mentions.length === 0) return null
 

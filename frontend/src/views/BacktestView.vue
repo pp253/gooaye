@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { supabase } from '@/lib/supabase'
-import { pct, rate, retColor } from '@/lib/format'
+import { pct, rate, retColor, formatDateYmd } from '@/lib/format'
 import { loadStockSignals } from '@/lib/useData'
+import { daysBetween } from '@/lib/signal'
 import KpiCard from '@/components/KpiCard.vue'
 import MultiEquityChart from '@/components/MultiEquityChart.vue'
 import HitRateChart from '@/components/HitRateChart.vue'
@@ -136,7 +137,7 @@ onMounted(async () => {
       filterTo.value = allDates[allDates.length - 1]
       const oneYearAgo = new Date()
       oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
-      const oneYearAgoStr = oneYearAgo.toISOString().slice(0, 10)
+      const oneYearAgoStr = formatDateYmd(oneYearAgo)
       filterFrom.value = allDates.find((d: string) => d >= oneYearAgoStr) ?? allDates[0]
     }
   }
@@ -219,7 +220,7 @@ function computeSharpe(curve: { date: string; value: number }[]) {
   const variance = r.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (r.length - 1)
   const sd = Math.sqrt(variance)
   if (sd === 0) return null
-  const days = (Date.parse(curve[curve.length - 1].date) - Date.parse(curve[0].date)) / 86400000
+  const days = daysBetween(curve[0].date, curve[curve.length - 1].date)
   const years = days / 365.25
   const periodsPerYear = years > 0 ? r.length / years : 252
   return (mean / sd) * Math.sqrt(periodsPerYear)
@@ -228,7 +229,7 @@ function computeSharpe(curve: { date: string; value: number }[]) {
 // 由日頻淨值序列計算年化複合報酬 (CAGR)。
 function computeCagr(curve: { date: string; value: number }[]) {
   if (curve.length < 2) return null
-  const days = (Date.parse(curve[curve.length - 1].date) - Date.parse(curve[0].date)) / 86400000
+  const days = daysBetween(curve[0].date, curve[curve.length - 1].date)
   if (days <= 0 || curve[0].value <= 0) return null
   const years = days / 365.25
   return Math.pow(curve[curve.length - 1].value / curve[0].value, 1 / years) - 1

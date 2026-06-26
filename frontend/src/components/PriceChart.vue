@@ -12,7 +12,12 @@ import {
 } from 'lightweight-charts'
 import { supabase, fetchAllPaged } from '@/lib/supabase'
 import type { PricePoint } from '@/lib/types'
-import { DIRECTION_COLOR as dirColor, type MentionWithTime } from '@/lib/signal'
+import {
+  type MentionWithTime,
+  type MarkerInfo,
+  buildMarkerInfo,
+  filterMentionsByDate,
+} from '@/lib/signal'
 import MentionTip from '@/components/MentionTip.vue'
 import { LIGHTWEIGHT_CHARTS_BASE_OPTIONS } from '@/lib/chartTheme'
 
@@ -32,23 +37,7 @@ const effectiveFrom = computed(() => props.fromDate ?? props.axisStart ?? null)
 const vis = computed(() =>
   effectiveFrom.value ? prices.value.filter((p) => p.date >= effectiveFrom.value!) : prices.value,
 )
-const visMentions = computed(() =>
-  effectiveFrom.value
-    ? props.mentions.filter((m) => m.published_at >= effectiveFrom.value!)
-    : props.mentions,
-)
-
-interface MarkerInfo {
-  ep?: number
-  date: string
-  daysAgo: number
-  dir: string
-  conf: number
-  hasPos: boolean
-  quote: string
-  color: string
-  price: number
-}
+const visMentions = computed(() => filterMentionsByDate(props.mentions, effectiveFrom.value))
 
 // 提及點：對齊到該日期(含)之後第一個有股價的點；key = 對齊後的股價日期
 const markerByDate = computed<Record<string, MarkerInfo>>(() => {
@@ -57,17 +46,7 @@ const markerByDate = computed<Record<string, MarkerInfo>>(() => {
     const idx = vis.value.findIndex((p) => p.date >= m.published_at)
     const p = idx >= 0 ? vis.value[idx] : vis.value[vis.value.length - 1]
     if (!p) continue
-    map[p.date] = {
-      ep: m.episodes?.ep_no,
-      date: m.published_at,
-      daysAgo: m.days_ago,
-      dir: m.direction,
-      conf: m.confidence,
-      hasPos: m.has_position,
-      quote: m.quote,
-      color: dirColor[m.direction],
-      price: p.close,
-    }
+    map[p.date] = buildMarkerInfo(m, p.close)
   }
   return map
 })
@@ -105,7 +84,7 @@ function buildChart() {
       hovered.value = null
       return
     }
-    const y = series.priceToCoordinate(info.price)
+    const y = info.price !== undefined ? series.priceToCoordinate(info.price) : null
     if (y == null) {
       hovered.value = null
       return
