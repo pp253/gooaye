@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { DIRECTION_COLOR as dirColor } from '@/lib/signal'
-import type { Episode, Mention } from '@/lib/types'
+import type { Episode, Mention } from '@/types/core'
 
 const props = defineProps<{ ep: string }>()
 

@@ -1,20 +1,9 @@
 import { supabase, fetchAllPaged } from './supabase'
-import type { Mention, Stock, StockPerformance } from './types'
-import {
-  computeSignal,
-  daysBetween,
-  freshness,
-  type MentionWithTime,
-  type StockSignal,
-} from './signal'
+import type { Mention, Stock, StockPerformance } from '@/types/core'
+import type { MentionWithTime } from '@/types/signal'
+import type { StockRow } from '@/types/stock'
+import { computeSignal, daysBetween, freshness } from './signal'
 import { formatDateYmd } from './format'
-
-export interface StockRow extends Stock {
-  signal: StockSignal
-  mentions: MentionWithTime[]
-  performance: StockPerformance | null
-  recent: number[] // 近約 30 天日收盤（舊→新），給迷你走勢圖用
-}
 
 type RawMention = Mention & {
   episodes: { ep_no: number; title: string; published_at: string | null }

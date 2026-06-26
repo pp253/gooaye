@@ -11,9 +11,8 @@ import {
   relativeTime,
   filterMentionsByDate,
   buildMarkerInfo,
-  type MentionWithTime,
-  type MarkerInfo,
 } from '@/lib/signal'
+import type { MentionWithTime, MarkerInfo } from '@/types/signal'
 import { ECHARTS_BASE_OPTIONS, makeTimeXAxis, makeValueYAxis } from '@/lib/chartTheme'
 
 use([CanvasRenderer, ScatterChart, LineChart, GridComponent, TooltipComponent])

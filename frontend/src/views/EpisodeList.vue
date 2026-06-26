@@ -2,7 +2,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { supabase, fetchAllPaged } from '@/lib/supabase'
 import { useQuerySync } from '@/lib/useQuerySync'
-import type { Episode, Direction } from '@/lib/types'
+import type { Episode, Direction } from '@/types/core'
 import BaseChip from '@/components/BaseChip.vue'
 import BaseInput from '@/components/BaseInput.vue'
 import BaseCard from '@/components/BaseCard.vue'

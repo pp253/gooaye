@@ -1,4 +1,5 @@
-import type { Mention, Direction } from './types'
+import type { Direction } from '@/types/core'
+import type { Freshness, MentionWithTime, StockSignal, MarkerInfo } from '@/types/signal'
 
 /** 方向權重：看多 +1、中性 0、看空 -1 */
 export const DIRECTION_WEIGHT: Record<Direction, number> = {
@@ -29,8 +30,6 @@ export function decay(daysAgo: number, halfLife = HALF_LIFE_DAYS): number {
   return Math.pow(0.5, Math.max(0, daysAgo) / h)
 }
 
-export type Freshness = 'fresh' | 'aging' | 'stale'
-
 /** 依距今天數分級。 */
 export function freshness(daysAgo: number): Freshness {
   if (daysAgo <= 14) return 'fresh'
@@ -52,30 +51,6 @@ export function relativeTime(daysAgo: number): string {
   if (daysAgo < 60) return `${Math.round(daysAgo / 7)} 週前`
   if (daysAgo < 365) return `${Math.round(daysAgo / 30)} 個月前`
   return `${(daysAgo / 365).toFixed(1)} 年前`
-}
-
-export interface MentionWithTime extends Mention {
-  published_at: string
-  days_ago: number
-  freshness: Freshness
-}
-
-export interface StockSignal {
-  /** 時間衰減後的綜合分數，正=偏多、負=偏空 */
-  score: number
-  /** 最近一次提及的方向（=他目前的立場） */
-  latest_direction: Direction
-  latest_days_ago: number
-  latest_ep: number
-  latest_freshness: Freshness
-  mention_count: number
-  has_position_ever: boolean
-  /** 最近連續看多次數 */
-  bull_streak: number
-  /** 首次提及日期（YYYY-MM-DD） */
-  first_mention_date: string
-  /** 首次提及距基準日天數 */
-  first_mention_days_ago: number
 }
 
 /**
@@ -117,18 +92,6 @@ export function computeSignal(mentions: MentionWithTime[], referenceDate: string
     first_mention_date: first.published_at,
     first_mention_days_ago: firstDaysAgo,
   }
-}
-
-export interface MarkerInfo {
-  ep?: number
-  date: string
-  daysAgo: number
-  dir: Direction
-  conf: number
-  hasPos: boolean
-  quote: string
-  color: string
-  price?: number
 }
 
 export function buildMarkerInfo(m: MentionWithTime, price?: number): MarkerInfo {

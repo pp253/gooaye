@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { loadSparklines, searchStockSignals, type StockRow } from '@/lib/useData'
+import { loadSparklines, searchStockSignals } from '@/lib/useData'
+import type { StockRow } from '@/types/stock'
 import { HALF_LIFE_DAYS, DIRECTION_COLOR as dirColor } from '@/lib/signal'
 import { pct, retColor } from '@/lib/format'
 import { useQuerySync } from '@/lib/useQuerySync'

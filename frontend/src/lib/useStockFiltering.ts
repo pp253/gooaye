@@ -1,6 +1,6 @@
 import { computed, type Ref } from 'vue'
-import { TRADEABLE_TYPES } from './types'
-import type { StockRow } from './useData'
+import { TRADEABLE_TYPES } from '@/types/core'
+import type { StockRow } from '@/types/stock'
 
 export function useStockFiltering(
   rows: Ref<StockRow[]>,

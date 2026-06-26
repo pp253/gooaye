@@ -11,13 +11,9 @@ import {
   type Time,
 } from 'lightweight-charts'
 import { supabase, fetchAllPaged } from '@/lib/supabase'
-import type { PricePoint } from '@/lib/types'
-import {
-  type MentionWithTime,
-  type MarkerInfo,
-  buildMarkerInfo,
-  filterMentionsByDate,
-} from '@/lib/signal'
+import type { PricePoint } from '@/types/core'
+import { buildMarkerInfo, filterMentionsByDate } from '@/lib/signal'
+import type { MentionWithTime, MarkerInfo } from '@/types/signal'
 import MentionTip from '@/components/MentionTip.vue'
 import { LIGHTWEIGHT_CHARTS_BASE_OPTIONS } from '@/lib/chartTheme'
 

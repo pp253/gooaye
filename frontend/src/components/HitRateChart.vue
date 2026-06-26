@@ -7,17 +7,9 @@ import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/compon
 import VChart from 'vue-echarts'
 import { pct } from '@/lib/format'
 import { ECHARTS_BASE_OPTIONS, CHART_THEME, makeLegend, makeValueYAxis } from '@/lib/chartTheme'
+import type { HitRow } from '@/types/backtest'
 
 use([CanvasRenderer, BarChart, GridComponent, TooltipComponent, LegendComponent])
-
-export interface HitRow {
-  horizon: number
-  n: number
-  pct_positive?: number
-  avg_return?: number
-  avg_alpha?: number | null
-  beat_bm_rate?: number | null
-}
 
 const props = defineProps<{
   hitRate: HitRow[]

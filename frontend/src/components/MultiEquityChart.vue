@@ -18,6 +18,7 @@ import {
   makeLegend,
 } from '@/lib/chartTheme'
 import { formatDateYmd } from '@/lib/format'
+import type { NavSeries } from '@/types/backtest'
 
 use([
   CanvasRenderer,
@@ -27,13 +28,6 @@ use([
   LegendComponent,
   MarkLineComponent,
 ])
-
-export interface NavSeries {
-  id: string
-  label: string
-  color: string
-  data: { date: string; value: number }[]
-}
 
 const props = withDefaults(
   defineProps<{

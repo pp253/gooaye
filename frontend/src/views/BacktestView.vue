@@ -16,65 +16,9 @@ import KpiCard from '@/components/KpiCard.vue'
 import MultiEquityChart from '@/components/MultiEquityChart.vue'
 import HitRateChart from '@/components/HitRateChart.vue'
 import RecommendationList from '@/components/RecommendationList.vue'
-import type { Rec } from '@/components/RecommendationList.vue'
+import type { Strategy, TradeRow, HitRow } from '@/types/backtest'
 import BaseChip from '@/components/BaseChip.vue'
 import BaseInput from '@/components/BaseInput.vue'
-
-interface Scope {
-  scope: string
-  n_trades: number
-  win_rate?: number
-  avg_return?: number
-  median_return?: number
-  avg_bm_return?: number | null
-  avg_alpha?: number | null
-  beat_bm_rate?: number | null
-}
-interface TradeRow {
-  ticker: string
-  name_zh: string
-  market: string
-  ep_date: string
-  entry_date: string
-  exit_date: string
-  ret: number
-  bm_ret: number | null
-  alpha: number | null
-}
-interface DailyBlock {
-  dates: string[]
-  nav: number[]
-  bm_nav: number[] | null
-}
-interface Strategy {
-  id: string
-  label: string
-  scopes: Scope[]
-  trades?: TradeRow[]
-  /** 後端日頻 NAV（每市場一條），前端切片重設基準後算 Sharpe/MDD/CAGR */
-  daily?: Record<string, DailyBlock>
-  /** 截至資料日仍開倉中的標的（目前建議買進/續抱） */
-  recommendations?: Rec[]
-  /** 邊際真實性檢驗：嚴格對標 + 因子(市場/半導體)beta 拆解（美股、全期） */
-  factor?: {
-    vs: Record<string, { n: number; avg_alpha: number; beat_rate: number } | null>
-    decomp: {
-      n: number
-      alpha_ann: number
-      beta_mkt: number
-      beta_semis: number
-      r2: number | null
-    } | null
-  }
-}
-interface HitRow {
-  horizon: number
-  n: number
-  pct_positive?: number
-  avg_return?: number
-  avg_alpha?: number | null
-  beat_bm_rate?: number | null
-}
 
 const loading = ref(true)
 const referenceDate = ref('')

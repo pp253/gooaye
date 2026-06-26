@@ -1,25 +1,6 @@
 <script setup lang="ts">
 import { pct, retColor } from '@/lib/format'
-
-export interface Rec {
-  stock_id: number
-  ticker: string
-  name_zh: string
-  market: string
-  asset_type: string
-  ep_no: number | null
-  signal_date: string
-  confidence: number | null
-  has_position: boolean | null
-  quote: string | null
-  entry_date: string
-  entry_price: number
-  current_date: string
-  current_price: number
-  ret: number | null
-  days_held: number
-  fresh: boolean
-}
+import type { Rec } from '@/types/backtest'
 
 defineProps<{
   recs: Rec[]

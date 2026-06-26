@@ -1,44 +1,5 @@
 import { daysBetween } from './signal'
-
-export interface TradeRow {
-  ticker: string
-  name_zh: string
-  market: string
-  ep_date: string
-  entry_date: string
-  exit_date: string
-  ret: number
-  bm_ret: number | null
-  alpha: number | null
-}
-
-export interface Scope {
-  scope: string
-  n_trades: number
-  win_rate?: number
-  avg_return?: number
-  avg_bm_return?: number | null
-  avg_alpha?: number | null
-  beat_bm_rate?: number | null
-}
-
-export interface DailyData {
-  dates: string[]
-  nav: number[]
-  bm_nav?: number[] | null
-}
-
-export interface Strategy {
-  id: string
-  label: string
-  desc?: string
-  scopes?: Scope[]
-  trades?: TradeRow[]
-  daily?: Record<string, DailyData>
-  recommendations?: unknown[]
-  hit_rate?: unknown[]
-  factor?: unknown
-}
+import type { Strategy, Scope, TradeRow } from '@/types/backtest'
 
 export function aggregate(trades: TradeRow[], scope: string): Scope {
   const sel = scope === 'ALL' ? trades : trades.filter((t) => t.market === scope)

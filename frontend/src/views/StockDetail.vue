@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
-import { loadSingleStockDetail, type StockRow } from '@/lib/useData'
+import { loadSingleStockDetail } from '@/lib/useData'
+import type { StockRow } from '@/types/stock'
 import { FRESHNESS_META, relativeTime, DIRECTION_COLOR as dirColor } from '@/lib/signal'
 import { pct, rate, retColor, formatDateYmd } from '@/lib/format'
 import { useQuerySync } from '@/lib/useQuerySync'
