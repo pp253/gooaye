@@ -110,7 +110,7 @@ onMounted(async () => {
                 <span class="perf-val">
                   勝率 {{ rate(row.performance.bull_win_rate) }}
                   <span class="perf-mid" :style="{ color: retColor(row.performance.bull_avg_return) }">
-                    · 平均 {{ pct(row.performance.bull_avg_return) }}
+                    平均 {{ pct(row.performance.bull_avg_return) }}
                   </span>
                 </span>
                 <span class="perf-sub">{{ row.performance.bull_n }} 次看多</span>
@@ -180,7 +180,7 @@ onMounted(async () => {
   border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.75rem;
 }
 .summary-grid { display: flex; align-items: center; flex-wrap: wrap; gap: 1rem 1.75rem; }
-.sc-block { display: flex; flex-direction: column; gap: 0.4rem; }
+.sc-block { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
 .sc-label { font-size: 0.78rem; color: #718096; }
 .sc-main { display: flex; align-items: center; flex-wrap: wrap; gap: 0.9rem; }
 .stance-dir { font-size: 1.5rem; font-weight: 700; }
@@ -190,12 +190,36 @@ onMounted(async () => {
 .sc-divider { width: 1px; align-self: stretch; background: #2d3748; }
 .stance-warn { margin-top: 0.75rem; font-size: 0.82rem; color: #f6ad55; background: #2d2410; padding: 0.5rem 0.75rem; border-radius: 6px; }
 
-.perf-row { display: flex; flex-wrap: wrap; gap: 1.75rem; }
-.perf-item { display: flex; flex-direction: column; gap: 0.15rem; }
-.perf-label { font-size: 0.72rem; color: #718096; }
-.perf-val { font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-.perf-mid { font-size: 0.9rem; font-weight: 600; }
+.perf-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 165px));
+  justify-content: start;
+  gap: 0.75rem 1.5rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.perf-item { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.perf-label { font-size: 0.72rem; color: #718096; white-space: nowrap; }
+.perf-val { font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.perf-mid { display: block; font-size: 0.85rem; font-weight: 600; margin-top: 0.1rem; }
 .perf-sub { font-size: 0.7rem; color: #4a5568; }
+
+/* ── 手機：立場與績效改為上下堆疊，分隔線改成水平線 ── */
+@media (max-width: 640px) {
+  .summary-card { padding: 0.85rem 0.95rem; }
+  .summary-grid { flex-direction: column; align-items: stretch; gap: 0.65rem; }
+  .sc-block { gap: 0.3rem; }
+  .sc-main { gap: 0.6rem; }
+  .sc-divider { display: none; }
+  .perf-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
+    gap: 0.55rem 0.9rem;
+    padding-top: 0.65rem;
+    border-top: 1px solid #2d3748;
+  }
+  .stance-dir { font-size: 1.3rem; }
+}
 
 .range-bar { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 1.25rem; }
 .range-label { font-size: 0.78rem; color: #718096; margin-right: 0.3rem; }

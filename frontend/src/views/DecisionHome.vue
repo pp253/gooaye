@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
+import { supabase } from '@/lib/supabase'
 import { loadStockSignals, type StockRow } from '@/lib/useData'
-import { TRADEABLE_TYPES } from '@/lib/types'
+import { TRADEABLE_TYPES, type Episode } from '@/lib/types'
 import { pct, retColor } from '@/lib/format'
 import { useQuerySync } from '@/lib/useQuerySync'
 import { DIRECTION_COLOR as dirColor } from '@/lib/signal'
@@ -14,6 +15,16 @@ import BaseCard from '@/components/BaseCard.vue'
 const rows = ref<StockRow[]>([])
 const referenceDate = ref('')
 const loading = ref(true)
+
+const latestEpisodes = ref<Episode[]>([])
+async function loadLatestEpisodes() {
+  const { data } = await supabase
+    .from('episodes')
+    .select('id, ep_no, title, source_url, published_at, summary, topics, created_at')
+    .order('ep_no', { ascending: false })
+    .limit(3)
+  latestEpisodes.value = (data ?? []) as Episode[]
+}
 
 const assetView = ref<'tradeable' | 'theme' | 'all'>('tradeable')
 const market = ref<'ALL' | 'TW' | 'US'>('ALL')
@@ -65,6 +76,7 @@ const newlyMentioned = computed(() =>
 )
 
 onMounted(async () => {
+  loadLatestEpisodes()
   const res = await loadStockSignals()
   rows.value = res.stocks
   referenceDate.value = res.referenceDate
@@ -78,6 +90,26 @@ onMounted(async () => {
       <h1 class="page-title">決策面板</h1>
       <span v-if="referenceDate" class="ref-date">時效基準：{{ referenceDate }}（資料集最新一集）</span>
     </div>
+
+    <section v-if="latestEpisodes.length" class="board latest-ep-board">
+      <div class="latest-ep-head">
+        <h2 class="board-title">📻 最新集數</h2>
+        <RouterLink to="/episodes" class="more-link">看全部集數 →</RouterLink>
+      </div>
+      <div class="card-row">
+        <BaseCard v-for="ep in latestEpisodes" :key="ep.id" :to="`/episodes/${ep.ep_no}`" class="ep-card">
+          <div class="ep-header">
+            <span class="ep-no">EP{{ ep.ep_no }}</span>
+            <span class="ep-title">{{ ep.title }}</span>
+          </div>
+          <span v-if="ep.published_at" class="ep-date">{{ ep.published_at }}</span>
+          <ul class="ep-summary">
+            <li v-for="(s, i) in ep.summary.slice(0, 2)" :key="i">{{ s }}</li>
+          </ul>
+        </BaseCard>
+      </div>
+    </section>
+
     <p v-if="loading" class="loading">載入中 …</p>
 
     <template v-else>
@@ -283,6 +315,20 @@ onMounted(async () => {
 .board-desc { font-size: 0.8rem; color: #718096; margin-bottom: 0.9rem; }
 
 .card-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem; }
+
+.latest-ep-board .card-row { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.latest-ep-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 0.9rem; }
+.latest-ep-head .board-title { margin-bottom: 0; }
+.more-link { font-size: 0.8rem; color: #63b3ed; text-decoration: none; white-space: nowrap; }
+.more-link:hover { text-decoration: underline; }
+
+.ep-card { padding: 0.8rem 0.9rem; gap: 0.4rem; }
+.ep-header { display: flex; align-items: baseline; gap: 0.5rem; }
+.ep-no { font-weight: 700; color: #63b3ed; font-size: 0.92rem; white-space: nowrap; }
+.ep-title { color: #a0aec0; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ep-date { color: #718096; font-size: 0.74rem; }
+.ep-summary { padding-left: 1rem; color: #cbd5e0; font-size: 0.8rem; line-height: 1.55; }
+.ep-summary li { margin-bottom: 0.15rem; }
 
 .sig-card { padding: 0.8rem 0.9rem; gap: 0.45rem; }
 

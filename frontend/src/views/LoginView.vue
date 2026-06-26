@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { signInWithGoogle, signOut } from '@/lib/auth'
+import { signInWithGoogle, signOut, inviteError } from '@/lib/auth'
 
 const props = defineProps<{ deniedEmail?: string | null }>()
 
@@ -53,6 +53,7 @@ async function google() {
           <p class="denied">此帳號（{{ props.deniedEmail }}）沒有存取權限。</p>
           <p class="hint">請用獲授權的帳號登入，或聯絡管理員邀請你加入。</p>
         </div>
+        <p v-if="inviteError" class="error">{{ inviteError }}</p>
         <button class="btn ghost" @click="signOut">登出並改用其他帳號</button>
       </template>
 
@@ -70,6 +71,7 @@ async function google() {
         </button>
 
         <p v-if="errorMsg" class="error">{{ errorMsg }}</p>
+        <p v-if="inviteError" class="error">{{ inviteError }}</p>
 
         <p class="footnote">僅限受邀 email；登入即代表同意僅供個人決策參考使用</p>
       </template>
