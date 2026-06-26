@@ -12,6 +12,29 @@ const TICKER_SYMBOLS = [
   '2327', 'ON', 'CRWD', 'TXN', '2603', 'VSH', '2382', 'CRM',
 ]
 
+const FEATURES = [
+  {
+    img: '/screenshots/screenshot-stocks.jpg',
+    title: '個股追蹤',
+    desc: '把每集提到的個股整理成一張總表，依「訊號分數」（方向 × 信心 × 時間衰減）排序，一眼看出現在最值得注意的標的。',
+  },
+  {
+    img: '/screenshots/screenshots-stock-page.jpg',
+    title: '個股詳情',
+    desc: '股價走勢與觀點演變雙圖並排，疊上他每次提及的時間點與方向，看清楚「他喊多的時候，股價其實在哪裡」。',
+  },
+  {
+    img: '/screenshots/screenshots-backtest.jpg',
+    title: '策略回測',
+    desc: '拿「他看多」當訊號，模擬六種跟單策略的進出場，算出勝率、超額報酬（α）、Sharpe、最大回撤，並拆解 α 有多少其實只是半導體 beta。',
+  },
+  {
+    img: '/screenshots/screenshots-episodes.jpg',
+    title: '集數摘要',
+    desc: '每集自動整理重點與提及股票清單，不用聽完兩小時 podcast 也能掌握他這集講了什麼。',
+  },
+]
+
 async function google() {
   errorMsg.value = ''
   loggingIn.value = true
@@ -25,6 +48,7 @@ async function google() {
 
 <template>
   <div class="login">
+    <div class="hero">
     <!-- 背景動態光暈 -->
     <div class="bg-glow glow-a" />
     <div class="bg-glow glow-b" />
@@ -45,7 +69,7 @@ async function google() {
         <span class="logo-glyph">📈</span>
         <h1 class="brand">股癌追蹤器</h1>
       </div>
-      <p class="tagline">把孟恭的每一句「看多」，變成你的進場訊號</p>
+      <p class="tagline">把股癌的每一句『看多』，變成你的進場訊號</p>
 
       <!-- 已登入但不在白名單 -->
       <template v-if="props.deniedEmail">
@@ -76,17 +100,41 @@ async function google() {
         <p class="footnote">僅限受邀 email；登入即代表同意僅供個人決策參考使用</p>
       </template>
     </div>
+
+    <div class="scroll-hint">看看這個網站能幹嘛 ↓</div>
+    </div>
+
+    <!-- 功能展示 -->
+    <section class="features">
+      <h2 class="features-title">這個網站可以幹嘛？</h2>
+      <p class="features-sub">追蹤《股癌》Podcast 主持人謝孟恭每集提到的股票，把他的觀點變成可以檢驗、可以回測的訊號——而不是聽過就忘的閒聊。</p>
+
+      <div class="feature-grid">
+        <div v-for="f in FEATURES" :key="f.title" class="feature-card">
+          <img :src="f.img" :alt="f.title" class="feature-img" loading="lazy" />
+          <h3 class="feature-card-title">{{ f.title }}</h3>
+          <p class="feature-card-desc">{{ f.desc }}</p>
+        </div>
+      </div>
+
+      <p class="features-footnote">所有資訊僅供決策參考，不構成投資建議。過去績效不代表未來表現。</p>
+    </section>
   </div>
 </template>
 
 <style scoped>
 .login {
   min-height: 100svh;
-  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  overflow-x: hidden;
+  background: radial-gradient(ellipse at 50% -10%, #16243f 0%, #0f1117 55%);
+}
+
+.hero {
+  min-height: 100svh;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
   padding: 2rem;
   position: relative;
-  overflow: hidden;
-  background: radial-gradient(ellipse at 50% -10%, #16243f 0%, #0f1117 55%);
 }
 
 /* ── 背景光暈：緩慢漂浮 ───────────────────────────── */
@@ -194,7 +242,59 @@ async function google() {
 .error { color: #fc8181; font-size: 0.82rem; margin: 0; }
 .footnote { color: #4a5568; font-size: 0.72rem; margin: 0.2rem 0 0; line-height: 1.4; }
 
+/* ── 往下滑提示 ───────────────────────────────────── */
+.scroll-hint {
+  position: absolute; left: 0; right: 0; bottom: 1.75rem; z-index: 1;
+  text-align: center;
+  color: #718096; font-size: 0.8rem;
+  animation: bob 2s ease-in-out infinite;
+}
+@keyframes bob {
+  0%, 100% { transform: translateY(0); opacity: 0.7; }
+  50%      { transform: translateY(5px); opacity: 1; }
+}
+
+/* ── 功能展示區 ───────────────────────────────────── */
+.features {
+  position: relative; z-index: 1;
+  max-width: 1080px; margin: 0 auto;
+  padding: 1rem 2rem 4rem;
+  text-align: center;
+}
+.features-title {
+  font-size: 1.6rem; font-weight: 800; color: #e2e8f0; margin: 0 0 0.6rem;
+}
+.features-sub {
+  color: #a0aec0; font-size: 0.92rem; line-height: 1.6;
+  max-width: 640px; margin: 0 auto 2.25rem;
+}
+
+.feature-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem; text-align: left;
+}
+.feature-card {
+  background: rgba(26, 31, 46, 0.65);
+  border: 1px solid rgba(99, 179, 237, 0.16);
+  border-radius: 14px; padding: 1rem;
+  display: flex; flex-direction: column; gap: 0.65rem;
+}
+.feature-img {
+  width: 100%; aspect-ratio: 1069 / 921; object-fit: cover; object-position: top;
+  border-radius: 8px; border: 1px solid rgba(99, 179, 237, 0.18);
+  box-shadow: 0 10px 24px -12px rgba(0, 0, 0, 0.55);
+}
+.feature-card-title { font-size: 1.02rem; font-weight: 700; color: #e2e8f0; margin: 0; }
+.feature-card-desc { font-size: 0.84rem; color: #a0aec0; line-height: 1.6; margin: 0; }
+
+.features-footnote { color: #4a5568; font-size: 0.74rem; margin-top: 2rem; line-height: 1.5; }
+
+@media (max-width: 720px) {
+  .feature-grid { grid-template-columns: 1fr; }
+  .features { padding: 1rem 1.25rem 3rem; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .bg-glow, .ticker-track, .logo-glyph, .brand, .card { animation: none !important; }
+  .bg-glow, .ticker-track, .logo-glyph, .brand, .card, .scroll-hint { animation: none !important; }
 }
 </style>
